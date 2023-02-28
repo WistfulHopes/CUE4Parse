@@ -128,7 +128,7 @@ namespace CUE4Parse.UE4.Assets.Exports.Material
                     Ar.Position = entryPtrPos + entryPtr.OffsetFromThis;
                     Shaders[i] = new FShader(Ar);
                 }
-                Ar.Position = (entryPtrPos + 8).Align(8);   
+                Ar.Position = (entryPtrPos + 8).Align(8);
             }
             PermutationIds = Ar.ReadArray<int>(SF_NumGraphicsFrequencies);
         }
@@ -323,7 +323,7 @@ namespace CUE4Parse.UE4.Assets.Exports.Material
         {
             BaseIndex = Ar.Read<ushort>();
             BufferIndex = Ar.Read<byte>();
-            Type = Ar.Read<byte>();   
+            Type = Ar.Read<byte>();
         }
     }
 
@@ -506,12 +506,22 @@ namespace CUE4Parse.UE4.Assets.Exports.Material
 
     public class FMaterialScalarParameterInfo
     {
-        public readonly FMemoryImageMaterialParameterInfo ParameterInfo;
+        public readonly FMemoryImageMaterialParameterInfo? ParameterInfo;
+        public readonly FHashedMaterialParameterInfo? ParameterInfoOld;
+        public readonly string ParameterName;
         public readonly float DefaultValue;
 
         public FMaterialScalarParameterInfo(FMemoryImageArchive Ar)
         {
-            ParameterInfo = new FMemoryImageMaterialParameterInfo(Ar);
+            if (Ar.Game >= EGame.GAME_UE4_26)
+            {
+                ParameterInfo = new FMemoryImageMaterialParameterInfo(Ar);
+            }
+            else
+            {
+                ParameterInfoOld = new FHashedMaterialParameterInfo(Ar);
+                ParameterName = Ar.ReadFString();
+            }
             DefaultValue = Ar.Read<float>();
             Ar.Position +=4;
         }
@@ -519,12 +529,22 @@ namespace CUE4Parse.UE4.Assets.Exports.Material
 
     public class FMaterialVectorParameterInfo
     {
-        public readonly FMemoryImageMaterialParameterInfo ParameterInfo;
+        public readonly FMemoryImageMaterialParameterInfo? ParameterInfo;
+        public readonly FHashedMaterialParameterInfo? ParameterInfoOld;
+        public readonly string ParameterName;
         public readonly FLinearColor DefaultValue;
 
         public FMaterialVectorParameterInfo(FMemoryImageArchive Ar)
         {
-            ParameterInfo = new FMemoryImageMaterialParameterInfo(Ar);
+            if (Ar.Game >= EGame.GAME_UE4_26)
+            {
+                ParameterInfo = new FMemoryImageMaterialParameterInfo(Ar);
+            }
+            else
+            {
+                ParameterInfoOld = new FHashedMaterialParameterInfo(Ar);
+                ParameterName = Ar.ReadFString();
+            }
             DefaultValue = Ar.Read<FLinearColor>();
         }
     }
@@ -650,14 +670,24 @@ namespace CUE4Parse.UE4.Assets.Exports.Material
 
     public class FMaterialTextureParameterInfo
     {
-        public FMemoryImageMaterialParameterInfo ParameterInfo;
+        public FMemoryImageMaterialParameterInfo? ParameterInfo;
+        public FHashedMaterialParameterInfo? ParameterInfoOld;
+        public readonly string ParameterName;
         public int TextureIndex = -1;
         public ESamplerSourceMode SamplerSource;
         public byte VirtualTextureLayerIndex = 0;
 
         public FMaterialTextureParameterInfo(FMemoryImageArchive Ar)
         {
-            ParameterInfo = new FMemoryImageMaterialParameterInfo(Ar);
+            if (Ar.Game >= EGame.GAME_UE4_26)
+            {
+                ParameterInfo = new FMemoryImageMaterialParameterInfo(Ar);
+            }
+            else
+            {
+                ParameterInfoOld = new FHashedMaterialParameterInfo(Ar);
+                ParameterName = Ar.ReadFString();
+            }
             TextureIndex = Ar.Read<int>();
             SamplerSource = Ar.Read<ESamplerSourceMode>();
             VirtualTextureLayerIndex = Ar.Read<byte>();
@@ -674,6 +704,21 @@ namespace CUE4Parse.UE4.Assets.Exports.Material
         public FMemoryImageMaterialParameterInfo(FMemoryImageArchive Ar)
         {
             Name = Ar.ReadFName();
+            Index = Ar.Read<int>();
+            Association = Ar.Read<EMaterialParameterAssociation>();
+            Ar.Position += 3;
+        }
+    }
+
+    public class FHashedMaterialParameterInfo
+    {
+        public FHashedName Name;
+        public int Index;
+        public EMaterialParameterAssociation Association;
+
+        public FHashedMaterialParameterInfo(FMemoryImageArchive Ar)
+        {
+            Name = Ar.Read<FHashedName>();
             Index = Ar.Read<int>();
             Association = Ar.Read<EMaterialParameterAssociation>();
             Ar.Position += 3;
@@ -1019,7 +1064,7 @@ namespace CUE4Parse.UE4.Assets.Exports.Material
     }
 
     public class FTypeLayoutDesc
-    {   
+    {
         public readonly FName? Name;
         public readonly FHashedName? NameHash;
         public readonly uint SavedLayoutSize;
@@ -1066,7 +1111,7 @@ namespace CUE4Parse.UE4.Assets.Exports.Material
 
             if (!bIsLegacyPackage)
             {
-                QualityLevel = Ar.Game >= EGame.GAME_UE5_2 ? (EMaterialQualityLevel) Ar.Read<byte>() : (EMaterialQualityLevel) Ar.Read<int>();//changed to byte in FN 23.20 
+                QualityLevel = Ar.Game >= EGame.GAME_UE5_2 ? (EMaterialQualityLevel) Ar.Read<byte>() : (EMaterialQualityLevel) Ar.Read<int>();//changed to byte in FN 23.20
                 FeatureLevel = (ERHIFeatureLevel) Ar.Read<int>();
             }
             else
