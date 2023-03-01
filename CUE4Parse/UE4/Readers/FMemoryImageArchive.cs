@@ -124,7 +124,7 @@ namespace CUE4Parse.UE4.Readers
             for (int i = 0; i < data.Length; i++)
             {
                 data[i] = getter();
-                Position = Position.Align(8);
+                Position = Position.Align(4);
             }
             Position = continuePos;
             return data;
@@ -269,8 +269,8 @@ namespace CUE4Parse.UE4.Readers
 
         public override FName ReadFName()
         {
-            Position += 4 + 4 + 4;
-            if (Names != null && Names.TryGetValue((int) Position, out var name))
+            Position += 12;
+            if (Names != null && Names.TryGetValue((int) Position - 12, out var name))
             {
                 return name;
             }

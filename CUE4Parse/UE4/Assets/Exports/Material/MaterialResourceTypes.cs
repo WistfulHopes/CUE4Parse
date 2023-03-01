@@ -11,7 +11,9 @@ using Serilog;
 
 namespace CUE4Parse.UE4.Assets.Exports.Material
 {
-    public class FMaterialResource : FMaterial { }
+    public class FMaterialResource : FMaterial
+    {
+    }
 
     public class FMaterial
     {
@@ -48,15 +50,18 @@ namespace CUE4Parse.UE4.Assets.Exports.Material
             var pointerTable = new FShaderMapPointerTable();
             var result = new FMemoryImageResult(pointerTable);
             result.LoadFromArchive(Ar);
-            Content = ReadContent(new FMemoryImageArchive(new FByteArchive("FShaderMapContent", result.FrozenObject, Ar.Versions))
-            {
-                Names = result.GetNames()
-            });
+            Content = ReadContent(
+                new FMemoryImageArchive(new FByteArchive("FShaderMapContent", result.FrozenObject, Ar.Versions))
+                {
+                    Names = result.GetNames()
+                });
 
             var bShareCode = Ar.ReadBoolean();
             if (bUseNewFormat)
             {
-                var shaderPlatform = Ar.Game >= EGame.GAME_UE5_2 ? Ar.ReadFString() : Ar.Read<EShaderPlatform>().ToString();
+                var shaderPlatform = Ar.Game >= EGame.GAME_UE5_2
+                    ? Ar.ReadFString()
+                    : Ar.Read<EShaderPlatform>().ToString();
             }
 
             if (bShareCode)
@@ -91,7 +96,7 @@ namespace CUE4Parse.UE4.Assets.Exports.Material
             if (Ar.Game >= EGame.GAME_UE5_2)
             {
                 var shaderPlatform = Ar.ReadFString();
-                Enum.TryParse("SP_"+shaderPlatform, out ShaderPlatform);
+                Enum.TryParse("SP_" + shaderPlatform, out ShaderPlatform);
             }
             else
             {
@@ -523,7 +528,10 @@ namespace CUE4Parse.UE4.Assets.Exports.Material
                 ParameterName = Ar.ReadFString();
             }
             DefaultValue = Ar.Read<float>();
-            Ar.Position +=4;
+            if (Ar.Game < EGame.GAME_UE4_26)
+            {
+                Ar.Position +=4;
+            }
         }
     }
 
