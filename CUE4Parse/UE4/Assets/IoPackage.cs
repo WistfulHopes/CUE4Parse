@@ -86,23 +86,32 @@ namespace CUE4Parse.UE4.Assets
                 FFilePackageStoreEntry? storeEntry = null;
                 if (containerHeader != null)
                 {
-                    var storeEntryIdx = Array.IndexOf(containerHeader.PackageIds, FPackageId.FromName(Name));
+                    var packageId = FPackageId.FromName(Name);
+                    var storeEntryIdx = Array.IndexOf(containerHeader.PackageIds, packageId);
                     if (storeEntryIdx != -1)
                     {
                         storeEntry = containerHeader.StoreEntries[storeEntryIdx];
                     }
                     else
                     {
-                        Log.Warning("Couldn't find store entry for package {0}, its data will not be fully read", Name);
+                        var optionalSegmentStoreEntryIdx = Array.IndexOf(containerHeader.OptionalSegmentPackageIds, packageId);
+                        if (optionalSegmentStoreEntryIdx != -1)
+                        {
+                            storeEntry = containerHeader.OptionalSegmentStoreEntries[optionalSegmentStoreEntryIdx];
+                        }
+                        else
+                        {
+                            Log.Warning("Couldn't find store entry for package {0}, its data will not be fully read", Name);
+                        }
                     }
                 }
 
                 BulkDataMap = Array.Empty<FBulkDataMapEntry>();
-                if (uassetAr.Game >= EGame.GAME_UE5_2 || Summary.FileVersionUE >= EUnrealEngineObjectUE5Version.DATA_RESOURCES)
+                if (Summary.FileVersionUE >= EUnrealEngineObjectUE5Version.DATA_RESOURCES || uassetAr.Game >= EGame.GAME_UE5_2)
                 {
+                    // uassetAr.Game >= EGame.GAME_UE5_2 is needed because fortnite doesn't fall into the first condition smh
                     var bulkDataMapSize = uassetAr.Read<ulong>();
-                    if (uassetAr.Game != EGame.GAME_UE5_2 || bulkDataMapSize < 65535) // Fortnite moment
-                        BulkDataMap = uassetAr.ReadArray<FBulkDataMapEntry>((int) (bulkDataMapSize / FBulkDataMapEntry.Size));
+                    BulkDataMap = uassetAr.ReadArray<FBulkDataMapEntry>((int) (bulkDataMapSize / FBulkDataMapEntry.Size));
                 }
 
                 // Imported public export hashes
