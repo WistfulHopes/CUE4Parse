@@ -90,6 +90,27 @@ namespace CUE4Parse.UE4.Assets.Exports.Material
         public override object Clone() => new FMaterialResourceProxyReader((FArchive) InnerArchive.Clone());
     }
 
+    public enum EMaterialShaderMapUsage : byte
+    {
+        Default,
+        LightmassExportEmissive,
+        LightmassExportDiffuse,
+        LightmassExportOpacity,
+        LightmassExportNormal,
+        MaterialExportBaseColor,
+        MaterialExportSpecular,
+        MaterialExportNormal,
+        MaterialExportMetallic,
+        MaterialExportRoughness,
+        MaterialExportAO,
+        MaterialExportEmissive,
+        MaterialExportOpacity,
+        MaterialExportOpacityMask,
+        MaterialExportSubSurfaceColor,
+        DebugViewModeTexCoordScale,
+        DebugViewModeRequiredTextureResolution
+    }
+
     public enum EMaterialQualityLevel : byte
     {
         Low,

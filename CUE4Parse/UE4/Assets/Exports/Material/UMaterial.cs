@@ -55,14 +55,7 @@ namespace CUE4Parse.UE4.Assets.Exports.Material
             if (Ar.Game >= EGame.GAME_UE5_0) // triggers a lot of "missing import" for .pak games and it's not needed for ue4 iostore
                 ScanForTextures(Ar);
 
-            if (Ar.Ver >= EUnrealEngineObjectUE4Version.PURGED_FMATERIAL_COMPILE_OUTPUTS)
-            {
-#if READ_SHADER_MAPS
-                DeserializeInlineShaderMaps(Ar, LoadedMaterialResources);
-#else
-                Ar.Position = validPos;
-#endif
-            }
+            DeserializeInlineShaderMaps(Ar, LoadedMaterialResources);
         }
 
         public UTexture? GetFirstTexture() => ReferencedTextures.Count > 0 ? ReferencedTextures[0] : null;

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Runtime.InteropServices;
 using CUE4Parse.UE4.Objects.Core.Math;
 using CUE4Parse.UE4.Objects.Core.Misc;
@@ -18,6 +19,7 @@ namespace CUE4Parse.UE4.Assets.Exports.Material
     public class FMaterial
     {
         public FMaterialShaderMap LoadedShaderMap;
+        public FMaterialShaderMapOld LoadedShaderMapOld;
 
         public void DeserializeInlineShaderMap(FMaterialResourceProxyReader Ar)
         {
@@ -29,6 +31,22 @@ namespace CUE4Parse.UE4.Assets.Exports.Material
             {
                 LoadedShaderMap = new FMaterialShaderMap();
                 LoadedShaderMap.Deserialize(Ar);
+            }
+            else
+            {
+                Log.Warning("Loading a material resource '{0}' with an invalid ShaderMap!", Ar.Name);
+            }
+        }
+        public void DeserializeInlineShaderMapOld(FMaterialResourceProxyReader Ar)
+        {
+            var bCooked = Ar.ReadBoolean();
+            if (!bCooked) return;
+
+            var bValid = Ar.ReadBoolean();
+            if (bValid)
+            {
+                LoadedShaderMapOld = new FMaterialShaderMapOld();
+                LoadedShaderMapOld.Deserialize(Ar);
             }
             else
             {
@@ -139,6 +157,207 @@ namespace CUE4Parse.UE4.Assets.Exports.Material
         }
     }
 
+    public class FShaderResource
+    {
+        public FName SpecificType;
+        public int SpecificPermutationId;
+        public FShaderTargetOld Target;
+        public byte[] Code;
+        public FSHAHash OutputHash;
+        public uint NumInstructions;
+        public FShaderParameterMapInfoOld ParameterMapInfo;
+        public uint NumTextureSamplers;
+        public int UncompressedSize;
+        public bool bCodeShared;
+        public FShaderResource(FArchive Ar)
+        {
+            SpecificType = Ar.ReadFName();
+            if (Ar.CustomVer(FRenderingObjectVersion.GUID) >= (int) FRenderingObjectVersion.Type.ShaderPermutationId)
+            {
+                SpecificPermutationId = Ar.Read<int>();
+            }
+            Target = Ar.Read<FShaderTargetOld>();
+
+            OutputHash = new FSHAHash(Ar);
+            NumInstructions = Ar.Read<uint>();
+            if (Ar.Ver >= EUnrealEngineObjectUE4Version.COMPRESSED_SHADER_RESOURCES)
+            {
+                UncompressedSize = Ar.Read<int>();
+            }
+            if (Ar.CustomVer(FRenderingObjectVersion.GUID) < (int) FRenderingObjectVersion.Type.ShaderResourceCodeSharing)
+            {
+                Code = Ar.ReadArray<byte>();
+            }
+
+            if (Ar.Game >= EGame.GAME_UE4_23)
+            {
+                ParameterMapInfo = new FShaderParameterMapInfoOld(Ar);
+            }
+            else
+            {
+                NumTextureSamplers = Ar.Read<uint>();
+            }
+
+            if (Ar.CustomVer(FRenderingObjectVersion.GUID) >=
+                (int) FRenderingObjectVersion.Type.ShaderResourceCodeSharing)
+            {
+                bCodeShared = Ar.Read<bool>();
+            }
+        }
+    }
+
+    public abstract class FShaderOld
+    {
+        public FSHAHash OutputHash;
+        public FSHAHash MaterialShaderMapHash;
+        public FName ShaderPipeline;
+        public FName VFType; // TIndexedPtr<FVertexFactoryType>
+        public FSHAHash VFSourceHash;
+        public FName Type; // TIndexedPtr<FShaderType>
+        public FSHAHash SourceHash;
+        public int PermutationId;
+        public FShaderTargetOld Target;
+        public FShaderUniformBufferParameterOld[] UniformBufferParameters;
+        public FShaderResource Resource;
+        public FShaderParameterBindings Bindings;
+
+        public static FShaderOld? MatchParameterType(FName TypeName)
+        {
+            if (TypeName.ToString() == "FMaterialShader")
+            {
+                return new FMaterialShader();
+            }
+
+            Log.Warning("Loading an unknown shader type '{0}'!", TypeName);
+            return null;
+        }
+
+        public abstract void Deserialize(FArchive Ar);
+
+        public void DeserializeBase(FArchive Ar)
+        {
+            Deserialize(Ar);
+            OutputHash = new FSHAHash(Ar);
+            MaterialShaderMapHash = new FSHAHash(Ar);
+            ShaderPipeline = Ar.ReadFName();
+            VFType = Ar.ReadFName();
+            VFSourceHash = new FSHAHash(Ar);
+            Type = Ar.ReadFName();
+            if (Ar.CustomVer(FRenderingObjectVersion.GUID) >= (int) FRenderingObjectVersion.Type.ShaderPermutationId)
+            {
+                PermutationId = Ar.Read<int>();
+            }
+            SourceHash = new FSHAHash(Ar);
+            Target = Ar.Read<FShaderTargetOld>();
+            int NumUniformParameters = Ar.Read<int>();
+            UniformBufferParameters = new FShaderUniformBufferParameterOld[NumUniformParameters];
+            foreach (int index in Enumerable.Range(0, NumUniformParameters))
+            {
+                Ar.ReadFName();
+                UniformBufferParameters[index] = new FShaderUniformBufferParameterOld(Ar);
+            }
+            Resource = new FShaderResource(Ar);
+            Bindings = new FShaderParameterBindings(Ar);
+        }
+    }
+
+    public class FSceneTextureShaderParameters
+    {
+        public FShaderUniformBufferParameterOld SceneTexturesUniformBuffer;
+        public FShaderUniformBufferParameterOld MobileSceneTexturesUniformBuffer;
+
+        public FSceneTextureShaderParameters(FArchive Ar)
+        {
+            SceneTexturesUniformBuffer = new FShaderUniformBufferParameterOld(Ar);
+            MobileSceneTexturesUniformBuffer = new FShaderUniformBufferParameterOld(Ar);
+        }
+    }
+
+    public class FDebugUniformExpressionSet
+    {
+        public int NumVectorExpressions;
+        public int NumScalarExpressions;
+        public int Num2DTextureExpressions;
+        public int NumCubeTextureExpressions;
+        public int NumVolumeTextureExpressions;
+
+        public FDebugUniformExpressionSet(FArchive Ar)
+        {
+            NumVectorExpressions = Ar.Read<int>();
+            NumScalarExpressions = Ar.Read<int>();
+            Num2DTextureExpressions = Ar.Read<int>();
+            NumCubeTextureExpressions = Ar.Read<int>();
+            NumVolumeTextureExpressions = Ar.Read<int>();
+        }
+    }
+
+    public class FMaterialShader : FShaderOld
+    {
+        public FSceneTextureShaderParameters SceneTextureParameters;
+        public FShaderUniformBufferParameterOld MaterialUniformBuffer;
+        public FShaderUniformBufferParameterOld[] ParameterCollectionUniformBuffers;
+        public FName LayoutName;
+        public FDebugUniformExpressionSet DebugUniformExpressionSet;
+        public string DebugDescription;
+        public FShaderResourceParameter VTFeedbackBuffer;
+        public FShaderResourceParameter PhysicalTexture;
+        public FShaderResourceParameter PhysicalTextureSampler;
+        public FShaderResourceParameter PageTable;
+        public FShaderResourceParameter PageTableSampler;
+        public FShaderParameter InstanceCount;
+        public FShaderParameter InstanceOffset;
+        public FShaderParameter VertexOffset;
+
+        public override void Deserialize(FArchive Ar)
+        {
+            SceneTextureParameters = new FSceneTextureShaderParameters(Ar);
+            MaterialUniformBuffer = new FShaderUniformBufferParameterOld(Ar);
+            ParameterCollectionUniformBuffers = Ar.ReadArray(() => new FShaderUniformBufferParameterOld(Ar));
+            LayoutName = Ar.ReadFName();
+            DebugUniformExpressionSet = new FDebugUniformExpressionSet(Ar);
+            DebugDescription = Ar.ReadFString();
+            VTFeedbackBuffer = new FShaderResourceParameter(Ar);
+            PhysicalTexture = new FShaderResourceParameter(Ar);
+            PhysicalTextureSampler = new FShaderResourceParameter(Ar);
+            PageTable = new FShaderResourceParameter(Ar);
+            PageTableSampler = new FShaderResourceParameter(Ar);
+            InstanceCount = new FShaderParameter(Ar);
+            InstanceOffset = new FShaderParameter(Ar);
+            VertexOffset = new FShaderParameter(Ar);
+        }
+    }
+
+    public class FSurfelBufferParameters
+    {
+        public FRWShaderParameter InterpolatedVertexData;
+        public FRWShaderParameter SurfelData;
+        public FRWShaderParameter VPLFlux;
+
+        public FSurfelBufferParameters(FArchive Ar)
+        {
+            InterpolatedVertexData = new FRWShaderParameter(Ar);
+            SurfelData = new FRWShaderParameter(Ar);
+            VPLFlux = new FRWShaderParameter(Ar);
+        }
+    }
+
+    public class FEvaluateSurfelMaterialCS : FMaterialShader
+    {
+        public FSurfelBufferParameters SurfelBufferParameters;
+        public FShaderParameter SurfelStartIndex;
+        public FShaderParameter NumSurfelsToGenerate;
+        public FShaderParameter Instance0InverseTransform;
+
+        public override void Deserialize(FArchive Ar)
+        {
+            base.Deserialize(Ar);
+            SurfelBufferParameters = new FSurfelBufferParameters(Ar);
+            SurfelStartIndex = new FShaderParameter(Ar);
+            NumSurfelsToGenerate = new FShaderParameter(Ar);
+            Instance0InverseTransform = new FShaderParameter(Ar);
+        }
+    }
+
     public class FShader
     {
         public FShaderParameterBindings Bindings;
@@ -186,7 +405,7 @@ namespace CUE4Parse.UE4.Assets.Exports.Material
         public ushort RootParameterBufferIndex = 0xFFFF;
 
 
-        public FShaderParameterBindings(FMemoryImageArchive Ar)
+        public FShaderParameterBindings(FArchive Ar)
         {
             Parameters = Ar.ReadArray<FParameter>();
             if (Ar.Game>= EGame.GAME_UE4_26)
@@ -236,7 +455,7 @@ namespace CUE4Parse.UE4.Assets.Exports.Material
             //LAYOUT_FIELD(uint16, BaseIndex);
 		    //LAYOUT_FIELD(uint16, ByteOffset);
 
-            public FResourceParameter(FMemoryImageArchive Ar)
+            public FResourceParameter(FArchive Ar)
             {
                 BaseIndex = (byte)Ar.Read<ushort>();
                 ByteOffset = Ar.Read<ushort>();
@@ -257,6 +476,22 @@ namespace CUE4Parse.UE4.Assets.Exports.Material
         {
             public ushort BufferIndex;
             public ushort ByteOffset;
+        }
+    }
+
+    public class FShaderParameterMapInfoOld
+    {
+        public FShaderParameterInfo[] UniformBuffers;
+        public FShaderParameterInfo[] TextureSamplers;
+        public FShaderParameterInfo[] SRVs;
+        public FShaderLooseParameterBufferInfo[] LooseParameterBuffers;
+
+        public FShaderParameterMapInfoOld(FArchive Ar)
+        {
+            UniformBuffers = Ar.ReadArray(() => new FShaderParameterInfo(Ar));
+            TextureSamplers = Ar.ReadArray(() => new FShaderParameterInfo(Ar));
+            SRVs = Ar.ReadArray(() => new FShaderParameterInfo(Ar));
+            LooseParameterBuffers = Ar.ReadArray(() => new FShaderLooseParameterBufferInfo(Ar));
         }
     }
 
@@ -292,7 +527,7 @@ namespace CUE4Parse.UE4.Assets.Exports.Material
         public ushort BaseIndex, Size;
         public FShaderLooseParameterInfo[] Parameters;
 
-        public FShaderLooseParameterBufferInfo(FMemoryImageArchive Ar)
+        public FShaderLooseParameterBufferInfo(FArchive Ar)
         {
             BaseIndex = Ar.Read<ushort>();
             Size = Ar.Read<ushort>();
@@ -306,7 +541,7 @@ namespace CUE4Parse.UE4.Assets.Exports.Material
         public ushort BaseIndex;
         public ushort Size;
 
-        public FShaderParameterInfo(FMemoryImageArchive Ar)
+        public FShaderParameterInfo(FArchive Ar)
         {
             BaseIndex = Ar.Read<ushort>();
             Size = Ar.Read<ushort>();
@@ -332,6 +567,55 @@ namespace CUE4Parse.UE4.Assets.Exports.Material
         }
     }
 
+    public class FShaderParameter
+    {
+        public ushort BufferIndex;
+        public ushort BaseIndex;
+        public ushort NumBytes;
+
+        public FShaderParameter(FArchive Ar)
+        {
+            BufferIndex = Ar.Read<ushort>();
+            BaseIndex = Ar.Read<ushort>();
+            NumBytes = Ar.Read<ushort>();
+        }
+    }
+
+    public class FShaderResourceParameter
+    {
+        public ushort BaseIndex;
+        public ushort NumResources;
+
+        public FShaderResourceParameter(FArchive Ar)
+        {
+            BaseIndex = Ar.Read<ushort>();
+            NumResources = Ar.Read<ushort>();
+        }
+    }
+
+    public class FRWShaderParameter
+    {
+        public FShaderResourceParameter SRVParameter;
+        public FShaderResourceParameter UAVParameter;
+
+        public FRWShaderParameter(FArchive Ar)
+        {
+            SRVParameter = new FShaderResourceParameter(Ar);
+            UAVParameter = new FShaderResourceParameter(Ar);
+        }
+    }
+
+    public struct FShaderUniformBufferParameterOld
+    {
+        public ushort BaseIndex;
+        public bool bIsBound;
+
+        public FShaderUniformBufferParameterOld(FArchive Ar)
+        {
+            BaseIndex = Ar.Read<ushort>();
+            bIsBound = Ar.Read<bool>();
+        }
+    }
     public struct FShaderUniformBufferParameter
     {
         public ushort BaseIndex;
@@ -342,6 +626,18 @@ namespace CUE4Parse.UE4.Assets.Exports.Material
         public FShaderUniformBufferParameterInfo(FMemoryImageArchive Ar)
         {
             BaseIndex = Ar.Read<ushort>();
+        }
+    }
+
+    public struct FShaderTargetOld
+    {
+        public uint Frequency;
+        public uint Platform;
+
+        public FShaderTargetOld(FArchive Ar)
+        {
+            Frequency = Ar.Read<uint>();
+            Platform = Ar.Read<uint>();
         }
     }
 
@@ -412,6 +708,16 @@ namespace CUE4Parse.UE4.Assets.Exports.Material
         }
     }
 
+    public class FMeshMaterialShaderMapOld : TShaderMap
+    {
+        public ulong VertexFactoryType;
+
+        public new void Deserialize(FMaterialResourceProxyReader Ar)
+        {
+            VertexFactoryType = Ar.Read<ulong>();
+            base.Deserialize(Ar);
+        }
+    }
     public class FMeshMaterialShaderMap : FShaderMapContent
     {
         public FHashedName VertexFactoryTypeName;
@@ -804,6 +1110,20 @@ namespace CUE4Parse.UE4.Assets.Exports.Material
         Num,
     }
 
+    public class FMaterialVirtualTextureStackOld
+    {
+        public uint NumLayers;
+        public readonly int[] LayerUniformExpressionIndices = new int[8];
+        public int PreallocatedStackTextureIndex;
+
+        public FMaterialVirtualTextureStackOld(FArchive Ar)
+        {
+            NumLayers = Ar.Read<uint>();
+            Ar.ReadArray(LayerUniformExpressionIndices);
+            PreallocatedStackTextureIndex = Ar.Read<int>();
+        }
+    }
+
     public class FMaterialVirtualTextureStack
     {
         public uint NumLayers;
@@ -888,6 +1208,20 @@ namespace CUE4Parse.UE4.Assets.Exports.Material
                 Hash = Ar.Read<uint>();
                 Ar.Position += 4;
             }
+        }
+    }
+
+    public struct FRHIUniformBufferLayout
+    {
+        public uint ConstantBufferSize;
+        public ushort[] ResourceOffsets;
+        public byte[] Resources;
+
+        public FRHIUniformBufferLayout(FArchive Ar)
+        {
+            ConstantBufferSize = Ar.Read<uint>();
+            ResourceOffsets = Ar.ReadArray<ushort>();
+            Resources = Ar.ReadArray<byte>();
         }
     }
 
@@ -1093,6 +1427,431 @@ namespace CUE4Parse.UE4.Assets.Exports.Material
         }
     }
 
+
+    public abstract class FMaterialUniformExpression
+    {
+        public static FMaterialUniformExpression MatchParameterType(FArchive Ar)
+        {
+            FName TypeName = Ar.ReadFName();
+            if (TypeName.ToString() == "FMaterialUniformExpressionVectorParameter")
+            {
+                return new FMaterialUniformExpressionVectorParameter();
+            }
+            if (TypeName.ToString() == "FMaterialUniformExpressionAppendVector")
+            {
+                return new FMaterialUniformExpressionAppendVector();
+            }
+            if (TypeName.ToString() == "FMaterialUniformExpressionClamp")
+            {
+                return new FMaterialUniformExpressionClamp();
+            }
+            if (TypeName.ToString() == "FMaterialUniformExpressionComponentSwizzle")
+            {
+                return new FMaterialUniformExpressionComponentSwizzle();
+            }
+            if (TypeName.ToString() == "FMaterialUniformExpressionFoldedMath")
+            {
+                return new FMaterialUniformExpressionFoldedMath();
+            }
+            if (TypeName.ToString() == "FMaterialUniformExpressionScalarParameter")
+            {
+                return new FMaterialUniformExpressionScalarParameter();
+            }
+            if (TypeName.ToString() == "FMaterialUniformExpressionConstant")
+            {
+                return new FMaterialUniformExpressionConstant();
+            }
+            if (TypeName.ToString() == "FMaterialUniformExpressionTexture")
+            {
+                return new FMaterialUniformExpressionTexture();
+            }
+            if (TypeName.ToString() == "FMaterialUniformExpressionTextureParameter")
+            {
+                return new FMaterialUniformExpressionTextureParameter();
+            }
+
+            Log.Warning("Loading an unknown uniform expression type '{0}'!", Ar.Name);
+            return null!;
+        }
+        public abstract void Deserialize(FArchive Ar);
+    }
+
+    public class FMaterialUniformExpressionScalarParameter : FMaterialUniformExpression
+    {
+        public FMaterialParameterInfo ParameterInfo;
+        public float DefaultValue;
+
+        public override void Deserialize(FArchive Ar)
+        {
+            ParameterInfo = new FMaterialParameterInfo(Ar);
+            DefaultValue = Ar.Read<float>();
+        }
+    }
+
+    public class FMaterialUniformExpressionVectorParameter : FMaterialUniformExpression
+    {
+        public FMaterialParameterInfo ParameterInfo;
+        public FLinearColor DefaultValue;
+
+        public override void Deserialize(FArchive Ar)
+        {
+            ParameterInfo = new FMaterialParameterInfo(Ar);
+            DefaultValue = Ar.Read<FLinearColor>();
+        }
+    }
+
+    public class FMaterialUniformExpressionAppendVector : FMaterialUniformExpression
+    {
+        FMaterialUniformExpression A;
+        FMaterialUniformExpression B;
+        uint NumComponentsA;
+
+        public override void Deserialize(FArchive Ar)
+        {
+            A = MatchParameterType(Ar);
+            A.Deserialize(Ar);
+            B = MatchParameterType(Ar);
+            B.Deserialize(Ar);
+            NumComponentsA = Ar.Read<uint>();
+        }
+    }
+
+    public class FMaterialUniformExpressionClamp : FMaterialUniformExpression
+    {
+        FMaterialUniformExpression Input;
+        FMaterialUniformExpression Min;
+        FMaterialUniformExpression Max;
+
+        public override void Deserialize(FArchive Ar)
+        {
+            Input = MatchParameterType(Ar);
+            Input.Deserialize(Ar);
+            Min = MatchParameterType(Ar);
+            Min.Deserialize(Ar);
+            Max = MatchParameterType(Ar);
+            Max.Deserialize(Ar);
+        }
+    }
+    public class FMaterialUniformExpressionComponentSwizzle : FMaterialUniformExpression
+    {
+        public FMaterialUniformExpression X;
+        public byte IndexR;
+        public byte IndexG;
+        public byte IndexB;
+        public byte IndexA;
+        public byte NumElements;
+
+        public override void Deserialize(FArchive Ar)
+        {
+            X = MatchParameterType(Ar);
+            X.Deserialize(Ar);
+            IndexR = Ar.Read<byte>();
+            IndexG = Ar.Read<byte>();
+            IndexB = Ar.Read<byte>();
+            IndexA = Ar.Read<byte>();
+            NumElements = Ar.Read<byte>();
+        }
+    }
+    public class FMaterialUniformExpressionFoldedMath : FMaterialUniformExpression
+    {
+        public FMaterialUniformExpression A;
+        public FMaterialUniformExpression B;
+        public uint ValueType;
+        public byte Op;
+
+        public override void Deserialize(FArchive Ar)
+        {
+            A = MatchParameterType(Ar);
+            A.Deserialize(Ar);
+            B = MatchParameterType(Ar);
+            B.Deserialize(Ar);
+            ValueType = Ar.Read<uint>();
+            Op = Ar.Read<byte>();
+        }
+    }
+
+    public class FMaterialUniformExpressionConstant : FMaterialUniformExpression
+    {
+        public FLinearColor Value;
+        public byte ValueType;
+        public override void Deserialize(FArchive Ar)
+        {
+            Value = Ar.Read<FLinearColor>();
+            ValueType = Ar.Read<byte>();
+        }
+    }
+
+    public class FMaterialUniformExpressionTexture : FMaterialUniformExpression
+    {
+        public int TextureIndex;
+        public short TextureLayerIndex;
+        public short PageTableLayerIndex;
+        public ESamplerSourceMode SamplerSource;
+        public bool bVirtualTexture;
+
+        public override void Deserialize(FArchive Ar)
+        {
+            TextureIndex = Ar.Read<int>();
+            if (Ar.Game >= EGame.GAME_UE4_23)
+            {
+                TextureLayerIndex = Ar.Read<short>();
+                PageTableLayerIndex = Ar.Read<short>();
+            }
+            SamplerSource = (ESamplerSourceMode)Ar.Read<int>();
+            if (Ar.Game >= EGame.GAME_UE4_23)
+            {
+                bVirtualTexture = Ar.Read<bool>();
+            }
+        }
+    }
+
+    public class FMaterialUniformExpressionTextureParameter : FMaterialUniformExpressionTexture
+    {
+        public FMaterialParameterInfo ParameterInfo;
+
+        public override void Deserialize(FArchive Ar)
+        {
+            ParameterInfo = new FMaterialParameterInfo(Ar);
+            base.Deserialize(Ar);
+        }
+    }
+
+    public class FUniformExpressionSetOld
+    {
+        public FMaterialUniformExpression[] UniformVectorExpressions;
+        public FMaterialUniformExpression[] UniformScalarExpressions;
+        public FMaterialUniformExpressionTexture[] Uniform2DTextureExpressions;
+        public FMaterialUniformExpressionTexture[] UniformCubeTextureExpressions;
+        public FMaterialUniformExpressionTexture[] Uniform2DArrayTextureExpressions;
+        public FMaterialUniformExpressionTexture[] UniformVolumeTextureExpressions;
+        public FMaterialUniformExpressionTexture[] UniformVirtualTextureExpressions;
+        public FMaterialUniformExpressionTexture[] UniformExternalTextureExpressions;
+
+        public FMaterialVirtualTextureStackOld[] VTStacks;
+        public FGuid[] ParameterCollections;
+
+        public FUniformExpressionSetOld(FArchive Ar)
+        {
+            UniformVectorExpressions = Ar.ReadArray(() =>
+            {
+                var Expression = FMaterialUniformExpression.MatchParameterType(Ar);
+                Expression.Deserialize(Ar);
+                return Expression;
+            });
+            UniformScalarExpressions = Ar.ReadArray(() =>
+            {
+                var Expression = FMaterialUniformExpression.MatchParameterType(Ar);
+                Expression.Deserialize(Ar);
+                return Expression;
+            });
+            Uniform2DTextureExpressions = Ar.ReadArray(() =>
+            {
+                var Expression = FMaterialUniformExpression.MatchParameterType(Ar);
+                Expression.Deserialize(Ar);
+                return (FMaterialUniformExpressionTexture)Expression;
+            });
+            UniformCubeTextureExpressions = Ar.ReadArray(() =>
+            {
+                var Expression = FMaterialUniformExpression.MatchParameterType(Ar);
+                Expression.Deserialize(Ar);
+                return (FMaterialUniformExpressionTexture)Expression;
+            });
+            UniformVolumeTextureExpressions = Ar.ReadArray(() =>
+            {
+                var Expression = FMaterialUniformExpression.MatchParameterType(Ar);
+                Expression.Deserialize(Ar);
+                return (FMaterialUniformExpressionTexture)Expression;
+            });
+            if (Ar.Game >= EGame.GAME_UE4_23)
+            {
+                UniformVirtualTextureExpressions = Ar.ReadArray(() =>
+                {
+                    var Expression = FMaterialUniformExpression.MatchParameterType(Ar);
+                    Expression.Deserialize(Ar);
+                    return (FMaterialUniformExpressionTexture)Expression;
+                });
+            }
+            UniformExternalTextureExpressions = Ar.ReadArray(() =>
+            {
+                var Expression = FMaterialUniformExpression.MatchParameterType(Ar);
+                Expression.Deserialize(Ar);
+                return (FMaterialUniformExpressionTexture)Expression;
+            });
+            if (Ar.Game >= EGame.GAME_UE4_23)
+            {
+                VTStacks = Ar.ReadArray(() => new FMaterialVirtualTextureStackOld(Ar));
+            }
+            Uniform2DArrayTextureExpressions = Ar.ReadArray(() =>
+            {
+                var Expression = FMaterialUniformExpression.MatchParameterType(Ar);
+                Expression.Deserialize(Ar);
+                return (FMaterialUniformExpressionTexture)Expression;
+            });
+            ParameterCollections = Ar.ReadArray<FGuid>();
+        }
+    }
+
+    public class FMaterialCompilationOutputOld
+    {
+        public FUniformExpressionSetOld UniformExpressionSet;
+        public uint UsedSceneTextures;
+        public byte NumUsedUVScalars;
+        public byte NumUsedCustomInterpolatorScalars;
+        public short EstimatedNumTextureSamplesVS;
+        public short EstimatedNumTextureSamplesPS;
+
+        public bool bRequiresSceneColorCopy;
+        public bool bNeedsSceneTextures;
+        public bool bUsesEyeAdaptation;
+        public bool bModifiesMeshPosition;
+        public bool bUsesWorldPositionOffset;
+        public bool bNeedsGBuffer;
+        public bool bUsesGlobalDistanceField;
+        public bool bUsesPixelDepthOffset;
+        public bool bUsesSceneDepthLookup;
+        public bool bUsesDistanceCullFade;
+        public bool bHasRuntimeVirtualTextureOutput;
+
+        public FMaterialCompilationOutputOld(FArchive Ar)
+        {
+            UniformExpressionSet = new FUniformExpressionSetOld(Ar);
+            if (Ar.Game >= EGame.GAME_UE4_23)
+            {
+                UsedSceneTextures = Ar.Read<uint>();
+                Ar.Read<ulong>();
+
+                byte PackedFlags = Ar.Read<byte>();
+
+                bRequiresSceneColorCopy = ((PackedFlags >> 0) & 1) != 0;
+                bModifiesMeshPosition = ((PackedFlags >> 1) & 1) != 0;
+                bUsesWorldPositionOffset = ((PackedFlags >> 0) & 2) != 0;
+                bUsesGlobalDistanceField = ((PackedFlags >> 0) & 3) != 0;
+                bUsesPixelDepthOffset = ((PackedFlags >> 0) & 4) != 0;
+                bUsesDistanceCullFade = ((PackedFlags >> 0) & 5) != 0;
+                bHasRuntimeVirtualTextureOutput = ((PackedFlags >> 0) & 6) != 0;
+            }
+            else
+            {
+                NumUsedUVScalars = Ar.Read<byte>();
+                NumUsedCustomInterpolatorScalars = Ar.Read<byte>();
+                EstimatedNumTextureSamplesVS = Ar.Read<short>();
+                EstimatedNumTextureSamplesPS = Ar.Read<short>();
+                bRequiresSceneColorCopy = Ar.Read<bool>();
+                Ar.Position += 3;
+                bNeedsSceneTextures = Ar.Read<bool>();
+                Ar.Position += 3;
+                bUsesEyeAdaptation = Ar.Read<bool>();
+                Ar.Position += 3;
+                bModifiesMeshPosition = Ar.Read<bool>();
+                Ar.Position += 3;
+                bUsesWorldPositionOffset = Ar.Read<bool>();
+                Ar.Position += 3;
+                bNeedsGBuffer = Ar.Read<bool>();
+                Ar.Position += 3;
+                bUsesGlobalDistanceField = Ar.Read<bool>();
+                Ar.Position += 3;
+                bUsesPixelDepthOffset = Ar.Read<bool>();
+                Ar.Position += 3;
+                bUsesSceneDepthLookup = Ar.Read<bool>();
+                Ar.Position += 3;
+            }
+        }
+    }
+
+
+    public abstract class TShaderMap
+    {
+        public struct FSerializedShaderPipeline
+        {
+            public FName ShaderPipelineType;
+            public FShaderOld[] ShaderStages;
+        }
+
+        public FName[] ShaderTypes;
+        public FShaderOld[] Shaders;
+        public FName[] ShaderPipelineTypes;
+        public FSerializedShaderPipeline[] ShaderPipelines;
+
+        public void Deserialize(FMaterialResourceProxyReader Ar)
+        {
+            int NumShaders = Ar.Read<int>();
+            ShaderTypes = new FName[NumShaders];
+            Shaders = new FShaderOld[NumShaders];
+            for (int ShaderIndex = 0; ShaderIndex < NumShaders; ShaderIndex++)
+            {
+                ShaderTypes[ShaderIndex] = Ar.ReadFName();
+                long EndOffset = Ar.Read<long>();
+                var Shader = FShaderOld.MatchParameterType(ShaderTypes[ShaderIndex]);
+                if (Shader != null)
+                {
+                    Shader.DeserializeBase(Ar);
+                    Shaders[ShaderIndex] = Shader;
+                }
+                else
+                {
+                    Ar.Position += EndOffset;
+                }
+            }
+            int NumPipelines = Ar.Read<int>();
+            ShaderPipelineTypes = new FName[NumPipelines];
+            ShaderPipelines = new FSerializedShaderPipeline[NumPipelines];
+            for (int PipelineIndex = 0; PipelineIndex < NumPipelines; PipelineIndex++)
+            {
+                ShaderPipelineTypes[PipelineIndex] = Ar.ReadFName();
+                FSerializedShaderPipeline SerializedPipeline = new();
+                int NumStages = Ar.Read<int>();
+                SerializedPipeline.ShaderStages = new FShaderOld[NumStages];
+                foreach (int index in Enumerable.Range(0, NumStages))
+                {
+                    SerializedPipeline.ShaderPipelineType = Ar.ReadFName();
+                    long EndOffset = Ar.Read<long>();
+                    var Shader = FShaderOld.MatchParameterType(SerializedPipeline.ShaderPipelineType);
+                    if (Shader != null)
+                    {
+                        Shader.DeserializeBase(Ar);
+                        SerializedPipeline.ShaderStages[index] = Shader;
+                    }
+                    else
+                    {
+                        Ar.Position += EndOffset;
+                    }
+                }
+                ShaderPipelines[PipelineIndex] = SerializedPipeline;
+            }
+        }
+    }
+
+    public class FMaterialShaderMapOld : TShaderMap
+    {
+        public FMaterialShaderMapId ShaderMapId;
+        public EShaderPlatform Platform;
+        public string FriendlyName;
+        public FMaterialCompilationOutputOld MaterialCompilationOutput;
+        public string DebugDescription;
+        public FMeshMaterialShaderMapOld[] MeshShaderMaps;
+        public bool bCooked;
+        public new void Deserialize(FMaterialResourceProxyReader Ar)
+        {
+            ShaderMapId = new FMaterialShaderMapId(Ar);
+            Platform = (EShaderPlatform)Ar.Read<int>();
+            FriendlyName = Ar.ReadFString();
+            MaterialCompilationOutput = new FMaterialCompilationOutputOld(Ar);
+            DebugDescription = Ar.ReadFString();
+
+            base.Deserialize(Ar);
+            int NumMeshShaderMaps = Ar.Read<int>();
+            MeshShaderMaps = new FMeshMaterialShaderMapOld[NumMeshShaderMaps];
+            foreach (int VFIndex in Enumerable.Range(0, NumMeshShaderMaps))
+            {
+                ulong VFType = Ar.Read<ulong>();
+                FMeshMaterialShaderMapOld MeshShaderMap = new FMeshMaterialShaderMapOld();
+                MeshShaderMap.Deserialize(Ar);
+                MeshShaderMaps[VFIndex] = MeshShaderMap;
+            }
+            bCooked = Ar.Read<bool>();
+        }
+    }
+
     public class FMaterialShaderMap : FShaderMapBase
     {
         public FMaterialShaderMapId ShaderMapId;
@@ -1106,15 +1865,69 @@ namespace CUE4Parse.UE4.Assets.Exports.Material
         protected override FShaderMapContent ReadContent(FMemoryImageArchive Ar) => new FMaterialShaderMapContent(Ar);
     }
 
+    public class FShaderTypeDependency
+    {
+        public FName ShaderTypeName;
+        public FSHAHash SourceHash;
+        public int PermutationId;
+
+        public FShaderTypeDependency(FArchive Ar)
+        {
+            ShaderTypeName = Ar.ReadFName();
+            SourceHash = new FSHAHash(Ar);
+            PermutationId = Ar.Read<int>();
+        }
+    }
+
+    public class FShaderPipelineTypeDependency
+    {
+        public FName ShaderPipelineType;
+        public FSHAHash SourceHash;
+
+        public FShaderPipelineTypeDependency(FArchive Ar)
+        {
+            ShaderPipelineType = Ar.ReadFName();
+            SourceHash = new FSHAHash(Ar);
+        }
+    }
+
+    public class FVertexFactoryTypeDependency
+    {
+        public FName VertexFactoryType;
+        public FSHAHash SourceHash;
+
+        public FVertexFactoryTypeDependency(FArchive Ar)
+        {
+            VertexFactoryType = Ar.ReadFName();
+            SourceHash = new FSHAHash(Ar);
+        }
+    }
+
     public class FMaterialShaderMapId
     {
+        public EMaterialShaderMapUsage Usage;
+        public FGuid BaseMaterialId;
         public EMaterialQualityLevel QualityLevel;
         public ERHIFeatureLevel FeatureLevel;
+        public FStaticParameterSet ParameterSet;
+        public FGuid[] ReferencedFunctions;
+        public FGuid[] ReferencedParameterCollections;
+        public FShaderTypeDependency[] ShaderTypeDependencies;
+        public FShaderPipelineTypeDependency[] ShaderPipelineTypeDependencies;
+        public FVertexFactoryTypeDependency[] VertexFactoryTypeDependencies;
+        public FSHAHash TextureReferencesHash;
+        public FSHAHash BasePropertyOverridesHash;
         public FSHAHash CookedShaderMapIdHash;
         public FPlatformTypeLayoutParameters? LayoutParams;
 
         public FMaterialShaderMapId(FArchive Ar)
         {
+            if (Ar.Game < EGame.GAME_UE4_23)
+            {
+                Usage = (EMaterialShaderMapUsage) Ar.Read<uint>();
+                BaseMaterialId = Ar.Read<FGuid>();
+            }
+
             var bIsLegacyPackage = Ar.Ver < EUnrealEngineObjectUE4Version.PURGED_FMATERIAL_COMPILE_OUTPUTS;
 
             if (!bIsLegacyPackage)
@@ -1127,12 +1940,51 @@ namespace CUE4Parse.UE4.Assets.Exports.Material
                 var legacyQualityLevel = (EMaterialQualityLevel) Ar.Read<byte>(); // Is it enum?
             }
 
-            CookedShaderMapIdHash = new FSHAHash(Ar);
-
-            if (!bIsLegacyPackage)
+            if (Ar.Game < EGame.GAME_UE4_23)
             {
-                LayoutParams = new FPlatformTypeLayoutParameters(Ar);
+                ParameterSet = new FStaticParameterSet(Ar);
+                ReferencedFunctions = Ar.ReadArray<FGuid>();
+                if (Ar.Ver >= EUnrealEngineObjectUE4Version.COLLECTIONS_IN_SHADERMAPID)
+                {
+                    ReferencedParameterCollections = Ar.ReadArray<FGuid>();
+                }
+                if (Ar.CustomVer(FEditorObjectVersion.GUID) >=
+                    (int) FEditorObjectVersion.Type.AddedMaterialSharedInputs
+                    && Ar.CustomVer(FReleaseObjectVersion.GUID) <
+                    (int)FReleaseObjectVersion.Type.RemovedMaterialSharedInputCollection)
+                {
+                    Ar.ReadArray<FGuid>();
+                }
+
+                ShaderTypeDependencies = Ar.ReadArray(() => new FShaderTypeDependency(Ar));
+                if (Ar.Ver >= EUnrealEngineObjectUE4Version.PURGED_FMATERIAL_COMPILE_OUTPUTS)
+                {
+                    ShaderPipelineTypeDependencies = Ar.ReadArray(() => new FShaderPipelineTypeDependency(Ar));
+                }
+                VertexFactoryTypeDependencies = Ar.ReadArray(() => new FVertexFactoryTypeDependency(Ar));
+                if (Ar.Ver >= EUnrealEngineObjectUE4Version.PURGED_FMATERIAL_COMPILE_OUTPUTS)
+                {
+                    TextureReferencesHash = new FSHAHash(Ar);
+                }
+                else
+                {
+                    var temp = new FSHAHash(Ar);
+                }
+                if (Ar.Ver >= EUnrealEngineObjectUE4Version.MATERIAL_INSTANCE_BASE_PROPERTY_OVERRIDES)
+                {
+                    BasePropertyOverridesHash = new FSHAHash(Ar);
+                }
             }
+            else
+            {
+                CookedShaderMapIdHash = new FSHAHash(Ar);
+
+                if (!bIsLegacyPackage && Ar.Game >= EGame.GAME_UE4_25)
+                {
+                    LayoutParams = new FPlatformTypeLayoutParameters(Ar);
+                }
+            }
+
         }
     }
 

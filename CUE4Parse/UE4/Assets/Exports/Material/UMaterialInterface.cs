@@ -123,7 +123,10 @@ namespace CUE4Parse.UE4.Assets.Exports.Material
                 for (var resourceIndex = 0; resourceIndex < numLoadedResources; ++resourceIndex)
                 {
                     var loadedResource = new FMaterialResource();
-                    loadedResource.DeserializeInlineShaderMap(resourceAr);
+                    if (Ar.Game >= EGame.GAME_UE4_25)
+                        loadedResource.DeserializeInlineShaderMap(resourceAr);
+                    else
+                        loadedResource.DeserializeInlineShaderMapOld(resourceAr);
                     loadedResources.Add(loadedResource);
                 }
             }
