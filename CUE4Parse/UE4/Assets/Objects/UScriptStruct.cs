@@ -1,5 +1,6 @@
 using System;
 using CUE4Parse.GameTypes.FN.Objects;
+using CUE4Parse.GameTypes.SWJS.Objects;
 using CUE4Parse.GameTypes.TSW.Objects;
 using CUE4Parse.UE4.Assets.Exports.Engine.Font;
 using CUE4Parse.UE4.Assets.Exports.Material;
@@ -18,6 +19,7 @@ using CUE4Parse.UE4.Objects.MovieScene;
 using CUE4Parse.UE4.Objects.MovieScene.Evaluation;
 using CUE4Parse.UE4.Objects.Niagara;
 using CUE4Parse.UE4.Objects.UObject;
+using CUE4Parse.UE4.Objects.WorldCondition;
 using CUE4Parse.UE4.Versions;
 using Newtonsoft.Json;
 
@@ -101,9 +103,10 @@ namespace CUE4Parse.UE4.Assets.Objects
                 "Vector_NetQuantizeNormal" => type == ReadType.ZERO ? new FVector() : new FVector(Ar),
                 "ClothLODDataCommon" => type == ReadType.ZERO ? new FClothLODDataCommon() : new FClothLODDataCommon(Ar),
                 "ClothTetherData" => type == ReadType.ZERO ? new FClothTetherData() : new FClothTetherData(Ar),
-
+                "Matrix" => type == ReadType.ZERO ? new FMatrix() : new FMatrix(Ar),
                 "InstancedStruct" => new FInstancedStruct(Ar),
-                
+                "WorldConditionQueryDefinition" => new FWorldConditionQueryDefinition(Ar),
+
                 // FortniteGame
                 "ConnectivityCube" => new FConnectivityCube(Ar),
                 //"FortActorRecord" => new FFortActorRecord(Ar),
@@ -118,6 +121,21 @@ namespace CUE4Parse.UE4.Assets.Objects
                 "VectorParameterValue" when Ar.Game == EGame.GAME_GTATheTrilogyDefinitiveEdition => new FVectorParameterValue(Ar),
                 "TextureParameterValue" when Ar.Game == EGame.GAME_GTATheTrilogyDefinitiveEdition => new FTextureParameterValue(Ar),
                 "MaterialTextureInfo" when Ar.Game == EGame.GAME_GTATheTrilogyDefinitiveEdition => new FMaterialTextureInfo(Ar),
+
+                // STAR WARS Jedi: Survivor
+                "SwBitfield_TargetRotatorMask" => new FRsBitfield(Ar, structName),
+                "RsBitfield_NavPermissionDetailFlags" => new FRsBitfield(Ar, structName),
+                "RsBitfield_NavPermissionFlags" => new FRsBitfield(Ar, structName),
+                "RsBitfield_NavState" => new FRsBitfield(Ar, structName),
+                "RsBitfield_HeroLoadoutFlags" => new FRsBitfield(Ar, structName),
+                "RsBitfield_HeroBufferFlags" => new FRsBitfield(Ar, structName),
+                "RsBitfield_HeroInputFlags" => new FRsBitfield(Ar, structName),
+                "RsBitfield_HeroUpgradeFlags" => new FRsBitfield(Ar, structName),
+                "RsBitfield_RsIkBoneTypes" => new FRsBitfield(Ar, structName),
+                "RsBitfield_UINavigationInput" => new FRsBitfield(Ar, structName),
+                "RsBitfield_WorldMapLevelType" => new FRsBitfield(Ar, structName),
+                "RsBitfield_WorldMapLODLevel" => new FRsBitfield(Ar, structName),
+                "RsBitfield_WorldMapWidgetFilterType" => new FRsBitfield(Ar, structName),
 
                 _ => type == ReadType.ZERO ? new FStructFallback() : struc != null ? new FStructFallback(Ar, struc) : new FStructFallback(Ar, structName)
             };

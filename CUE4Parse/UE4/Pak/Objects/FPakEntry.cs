@@ -4,7 +4,7 @@ using CUE4Parse.Compression;
 using CUE4Parse.Encryption.Aes;
 using CUE4Parse.UE4.Objects.Core.Misc;
 using CUE4Parse.UE4.Readers;
-using CUE4Parse.UE4.Vfs;
+using CUE4Parse.UE4.VirtualFileSystem;
 using CUE4Parse.Utils;
 using static CUE4Parse.UE4.Objects.Core.Misc.ECompressionFlags;
 using static CUE4Parse.UE4.Pak.Objects.EPakFileVersion;
@@ -104,6 +104,10 @@ namespace CUE4Parse.UE4.Pak.Objects
                     if (reader.Game == GAME_PlayerUnknownsBattlegrounds)
                     {
                         compressionMethodIndex = 3; // TODO: Investigate what a proper detection is.
+                    }
+                    else if (reader.Game == GAME_DeadIsland2)
+                    {
+                        compressionMethodIndex = 6; // ¯\_(ツ)_/¯
                     }
                     else
                     {
@@ -303,7 +307,7 @@ namespace CUE4Parse.UE4.Pak.Objects
                     CompressionBlocks[i].CompressedEnd += Offset;
                 }
             }
-            
+
             // Compute StructSize: each file still have FPakEntry data prepended, and it should be skipped.
             StructSize = sizeof(long) * 3 + sizeof(int) * 2 + 1 + 20;
             // Take into account CompressionBlocks

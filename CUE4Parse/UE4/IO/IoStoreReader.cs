@@ -6,13 +6,13 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
 using CUE4Parse.Encryption.Aes;
-using CUE4Parse.FileProvider;
+using CUE4Parse.FileProvider.Objects;
 using CUE4Parse.UE4.Exceptions;
 using CUE4Parse.UE4.IO.Objects;
 using CUE4Parse.UE4.Objects.Core.Misc;
 using CUE4Parse.UE4.Readers;
 using CUE4Parse.UE4.Versions;
-using CUE4Parse.UE4.Vfs;
+using CUE4Parse.UE4.VirtualFileSystem;
 using CUE4Parse.Utils;
 
 namespace CUE4Parse.UE4.IO
@@ -300,7 +300,7 @@ namespace CUE4Parse.UE4.IO
             return Files;
         }
 
-        public IReadOnlyDictionary<string, GameFile> ProcessIndex(bool caseInsensitive)
+        private void ProcessIndex(bool caseInsensitive)
         {
             if (!HasDirectoryIndex || TocResource.DirectoryIndexBuffer == null) throw new ParserException("No directory index");
             var directoryIndex = new FByteArchive(Path, DecryptIfEncrypted(TocResource.DirectoryIndexBuffer));
@@ -356,10 +356,10 @@ namespace CUE4Parse.UE4.IO
                 }
             }
 
-            return Files = files;
+            Files = files;
         }
 
-        public FIoContainerHeader ReadContainerHeader()
+        private FIoContainerHeader ReadContainerHeader()
         {
             var headerChunkId = new FIoChunkId(TocResource.Header.ContainerId.Id, 0, Game >= EGame.GAME_UE5_0 ? (byte) EIoChunkType5.ContainerHeader : (byte) EIoChunkType.ContainerHeader);
             var Ar = new FByteArchive("ContainerHeader", Read(headerChunkId), Versions);

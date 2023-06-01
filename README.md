@@ -23,18 +23,16 @@ git clone https://github.com/FabianFG/CUE4Parse.git --recursive
 
 #### Example
 ```csharp
-// using CUE4Parse_Conversion;
-
 var provider = new DefaultFileProvider(ARCHIVE_DIRECTORY_HERE, SearchOption.TopDirectoryOnly, true, new VersionContainer(EGame.GAME_UE4_27));
 provider.Initialize(); // will scan the archive directory for supported file extensions
 
-var allExports = provider.LoadObjectExports(PACKAGE_PATH_HERE); // {GAME}/Content/Folder1/Folder2/PackageName.uasset
+var allObjects = provider.LoadAllObjects(PACKAGE_PATH_HERE); // {GAME}/Content/Folder1/Folder2/PackageName.uasset
 var fullJson = JsonConvert.SerializeObject(allExports, Formatting.Indented);
 
-var objectExport = provider.LoadObject(OBJECT_PATH_HERE); // {GAME}/Content/Folder1/Folder2/PackageName.ObjectName
-var objectJson = JsonConvert.SerializeObject(objectExport, Formatting.Indented);
+var obj = provider.LoadObject(OBJECT_PATH_HERE); // {GAME}/Content/Folder1/Folder2/PackageName.ObjectName
+var objJson = JsonConvert.SerializeObject(objectExport, Formatting.Indented);
 
-switch (objectExport)
+switch (obj)
 {
     case UTexture2D texture:
     {

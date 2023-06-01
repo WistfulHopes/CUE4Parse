@@ -66,6 +66,14 @@ namespace CUE4Parse.UE4.Assets.Exports.Texture
 
             if (bCooked)
             {
+                var bSerializeMipData = true;
+
+                if (Ar.Game >= EGame.GAME_UE5_3)
+                {
+                    // Controls whether FByteBulkData is serialized??
+                    bSerializeMipData = Ar.ReadBoolean();
+                }
+
                 var pixelFormatEnum = Ar.ReadFName();
                 while (!pixelFormatEnum.IsNone)
                 {
@@ -149,6 +157,19 @@ namespace CUE4Parse.UE4.Assets.Exports.Texture
             return GetFirstMip();
         }
 
+        private const int BitMask_CubeMap = 1 << 31;
+        private const int BitMask_HasOptData = 1 << 30;
+        private const int BitMask_NumSlices = BitMask_HasOptData - 1;
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public bool HasOptData() => (PackedData & BitMask_HasOptData) == BitMask_HasOptData;
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public bool IsCubemap() => (PackedData & BitMask_CubeMap) == BitMask_CubeMap;
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public int GetNumSlices() => PackedData & BitMask_NumSlices;
+
         public override void GetParams(CMaterialParams parameters)
         {
             // ???
@@ -196,7 +217,7 @@ namespace CUE4Parse.UE4.Assets.Exports.Texture
             }
         }
     }
-    
+
     public enum TextureCompressionSettings
     {
         TC_Default,
