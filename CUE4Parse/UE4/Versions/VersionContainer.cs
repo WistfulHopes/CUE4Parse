@@ -71,18 +71,20 @@ namespace CUE4Parse.UE4.Versions
             // fields
             Options["RawIndexBuffer.HasShouldExpandTo32Bit"] = Game >= GAME_UE4_25;
             Options["ShaderMap.UseNewCookedFormat"] = Game >= GAME_UE5_0;
-            Options["SkeletalMesh.KeepMobileMinLODSettingOnDesktop"] = Game >= GAME_UE5_2;
             Options["SkeletalMesh.UseNewCookedFormat"] = Game >= GAME_UE4_24;
             Options["SkeletalMesh.HasRayTracingData"] = Game is >= GAME_UE4_27 or GAME_UE4_25_Plus;
             Options["StaticMesh.HasLODsShareStaticLighting"] = Game is < GAME_UE4_15 or >= GAME_UE4_16; // Exists in all engine versions except UE4.15
             Options["StaticMesh.HasRayTracingGeometry"] = Game >= GAME_UE4_25;
             Options["StaticMesh.HasVisibleInRayTracing"] = Game >= GAME_UE4_26;
-            Options["StaticMesh.KeepMobileMinLODSettingOnDesktop"] = Game >= GAME_UE5_2;
             Options["StaticMesh.UseNewCookedFormat"] = Game >= GAME_UE4_23;
             Options["VirtualTextures"] = Game >= GAME_UE4_23;
             Options["SoundWave.UseAudioStreaming"] = Game >= GAME_UE4_25 && Game != GAME_UE4_28 && Game != GAME_GTATheTrilogyDefinitiveEdition && Game != GAME_ReadyOrNot && Game != GAME_BladeAndSoul; // A lot of games use this, but some don't, which causes issues.
             Options["AnimSequence.HasCompressedRawSize"] = Game >= GAME_UE4_17; // Early 4.17 builds don't have this, and some custom engine builds don't either.
             Options["StaticMesh.HasNavCollision"] = Ver >= EUnrealEngineObjectUE4Version.STATIC_MESH_STORE_NAV_COLLISION && Game != GAME_GearsOfWar4 && Game != GAME_TEKKEN7;
+
+            // defaults
+            Options["SkeletalMesh.KeepMobileMinLODSettingOnDesktop"] = false;
+            Options["StaticMesh.KeepMobileMinLODSettingOnDesktop"] = false;
 
             if (_optionOverrides != null)
             {
@@ -116,6 +118,8 @@ namespace CUE4Parse.UE4.Versions
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             get => Options[optionKey];
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            set => Options[optionKey] = value;
         }
 
         public object Clone() => new VersionContainer(Game, Platform, Ver, CustomVersions, _optionOverrides, _mapStructTypesOverrides) { bExplicitVer = bExplicitVer };

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using CUE4Parse.FileProvider;
 using CUE4Parse.MappingsProvider;
@@ -41,9 +42,10 @@ namespace CUE4Parse.UE4.Assets
             GlobalData = globalData;
             var uassetAr = new FAssetArchive(uasset, this);
 
-            FExportBundleHeader[] exportBundleHeaders = Array.Empty<FExportBundleHeader>();
+            FExportBundleHeader[]? exportBundleHeaders;
             FExportBundleEntry[] exportBundleEntries;
             FPackageId[] importedPackageIds;
+            int cookedHeaderSize;
             int allExportDataOffset;
 
             if (uassetAr.Game >= EGame.GAME_UE5_0)
@@ -129,7 +131,7 @@ namespace CUE4Parse.UE4.Assets
                 uassetAr.Position = summary.ExportBundleEntriesOffset;
                 exportBundleEntries = uassetAr.ReadArray<FExportBundleEntry>(Summary.ExportCount * 2);
 
-                if (uassetAr.Game < EGame.GAME_UE5_3)
+                if (uassetAr.Game < EGame.GAME_UE5_2)
                 {
                     // Export bundle headers
                     uassetAr.Position = summary.GraphDataOffset;
@@ -137,9 +139,11 @@ namespace CUE4Parse.UE4.Assets
                     exportBundleHeaders = uassetAr.ReadArray<FExportBundleHeader>(exportBundleHeadersCount);
                     // We don't read the graph data
                 }
+                else exportBundleHeaders = null;
 
                 importedPackageIds = storeEntry?.ImportedPackages ?? Array.Empty<FPackageId>();
 
+                cookedHeaderSize = (int) summary.CookedHeaderSize;
                 allExportDataOffset = (int) summary.HeaderSize;
             }
             else
@@ -178,6 +182,7 @@ namespace CUE4Parse.UE4.Assets
                 uassetAr.Position = summary.GraphDataOffset;
                 importedPackageIds = LoadGraphData(uassetAr);
 
+                cookedHeaderSize = (int) summary.CookedHeaderSize;
                 allExportDataOffset = summary.GraphDataOffset + summary.GraphDataSize;
             }
 
@@ -200,94 +205,51 @@ namespace CUE4Parse.UE4.Assets
                 throw new ParserException("Package has unversioned properties but mapping file is missing, can't serialize");
 
             // Populate lazy exports
-            var currentExportDataOffset = allExportDataOffset;
-
-            // Yes, I know unsafe, I don't have time to do it safe.
-            if (uassetAr.Game >= EGame.GAME_UE5_3)
+            int ProcessEntry(FExportBundleEntry entry, int pos, bool newPos)
             {
-                unsafe
+                if (entry.CommandType != EExportCommandType.ExportCommandType_Serialize)
+                    return 0; // Skip ExportCommandType_Create
+
+                var export = ExportMap[entry.LocalExportIndex];
+                ExportsLazy[entry.LocalExportIndex] = new Lazy<UObject>(() =>
                 {
-                    fixed (FExportBundleEntry* ExportBundleEntries = exportBundleEntries)
-                    {
-                        var bundleEntry = ExportBundleEntries;
-                        var entryCount = exportBundleEntries.Length;
-                        var entryEnd = bundleEntry + entryCount;
+                    // Create
+                    var obj = ConstructObject(ResolveObjectIndex(export.ClassIndex)?.Object?.Value as UStruct);
+                    obj.Name = CreateFNameFromMappedName(export.ObjectName).Text;
+                    obj.Outer = (ResolveObjectIndex(export.OuterIndex) as ResolvedExportObject)?.ExportObject.Value ?? this;
+                    obj.Super = ResolveObjectIndex(export.SuperIndex) as ResolvedExportObject;
+                    obj.Template = ResolveObjectIndex(export.TemplateIndex) as ResolvedExportObject;
+                    obj.Flags |= export.ObjectFlags; // We give loaded objects the RF_WasLoaded flag in ConstructObject, so don't remove it again in here
 
-                        while (bundleEntry < entryEnd)
-                        {
-                            if (bundleEntry->CommandType == EExportCommandType.ExportCommandType_Serialize)
-                            {
-                                var localExportIndex = bundleEntry->LocalExportIndex;
-                                var export = ExportMap[localExportIndex];
-                                var localExportDataOffset = currentExportDataOffset;
-                                ExportsLazy[localExportIndex] = new Lazy<UObject>(() =>
-                                {
-                                    // Create
-                                    var obj = ConstructObject(ResolveObjectIndex(export.ClassIndex)?.Object?.Value as UStruct);
-                                    obj.Name = CreateFNameFromMappedName(export.ObjectName).Text;
-                                    obj.Outer = (ResolveObjectIndex(export.OuterIndex) as ResolvedExportObject)?.ExportObject.Value ?? this;
-                                    obj.Super = ResolveObjectIndex(export.SuperIndex) as ResolvedExportObject;
-                                    obj.Template = ResolveObjectIndex(export.TemplateIndex) as ResolvedExportObject;
-                                    obj.Flags |= export.ObjectFlags; // We give loaded objects the RF_WasLoaded flag in ConstructObject, so don't remove it again in here
-
-                                    // Serialize
-                                    var Ar = (FAssetArchive) uassetAr.Clone();
-                                    Ar.AbsoluteOffset = (int) export.CookedSerialOffset - localExportDataOffset;
-                                    Ar.Position = localExportDataOffset;
-                                    DeserializeObject(obj, Ar, (long) export.CookedSerialSize);
-                                    // TODO right place ???
-                                    obj.Flags |= EObjectFlags.RF_LoadCompleted;
-                                    obj.PostLoad();
-                                    return obj;
-                                });
-
-                                currentExportDataOffset += (int) export.CookedSerialSize;
-                            }
-
-                            ++bundleEntry;
-                        }
-                    }
-                }
+                    // Serialize
+                    var Ar = (FAssetArchive) uassetAr.Clone();
+                    Ar.AbsoluteOffset = newPos ? cookedHeaderSize - allExportDataOffset : (int) export.CookedSerialOffset - pos;
+                    Ar.Position = pos;
+                    DeserializeObject(obj, Ar, (long) export.CookedSerialSize);
+                    // TODO right place ???
+                    obj.Flags |= EObjectFlags.RF_LoadCompleted;
+                    obj.PostLoad();
+                    return obj;
+                });
+                return (int) export.CookedSerialSize;
             }
-            else
+
+            if (exportBundleHeaders != null) // 4.26 - 5.2
             {
                 foreach (var exportBundle in exportBundleHeaders)
                 {
+                    var currentExportDataOffset = allExportDataOffset;
                     for (var i = 0u; i < exportBundle.EntryCount; i++)
                     {
-                        var entry = exportBundleEntries[exportBundle.FirstEntryIndex + i];
-                        if (entry.CommandType == EExportCommandType.ExportCommandType_Serialize)
-                        {
-                            var localExportIndex = entry.LocalExportIndex;
-                            var export = ExportMap[localExportIndex];
-                            var localExportDataOffset = currentExportDataOffset;
-                            ExportsLazy[localExportIndex] = new Lazy<UObject>(() =>
-                            {
-                                // Create
-                                var obj = ConstructObject(ResolveObjectIndex(export.ClassIndex)?.Object?.Value as UStruct);
-                                obj.Name = CreateFNameFromMappedName(export.ObjectName).Text;
-                                obj.Outer = (ResolveObjectIndex(export.OuterIndex) as ResolvedExportObject)?.ExportObject.Value ?? this;
-                                obj.Super = ResolveObjectIndex(export.SuperIndex) as ResolvedExportObject;
-                                obj.Template = ResolveObjectIndex(export.TemplateIndex) as ResolvedExportObject;
-                                obj.Flags |= export.ObjectFlags; // We give loaded objects the RF_WasLoaded flag in ConstructObject, so don't remove it again in here
-
-                                // Serialize
-                                var Ar = (FAssetArchive) uassetAr.Clone();
-                                Ar.AbsoluteOffset = (int) export.CookedSerialOffset - localExportDataOffset;
-                                Ar.Position = localExportDataOffset;
-                                DeserializeObject(obj, Ar, (long) export.CookedSerialSize);
-                                // TODO right place ???
-                                obj.Flags |= EObjectFlags.RF_LoadCompleted;
-                                obj.PostLoad();
-                                return obj;
-                            });
-                            currentExportDataOffset += (int) export.CookedSerialSize;
-                        }
+                        currentExportDataOffset += ProcessEntry(exportBundleEntries[exportBundle.FirstEntryIndex + i], currentExportDataOffset, false);
                     }
+                    Summary.BulkDataStartOffset = currentExportDataOffset;
                 }
             }
-
-            Summary.BulkDataStartOffset = currentExportDataOffset;
+            else foreach (var entry in exportBundleEntries)
+            {
+                ProcessEntry(entry, allExportDataOffset + (int) ExportMap[entry.LocalExportIndex].CookedSerialOffset, true);
+            }
 
             IsFullyLoaded = true;
         }
