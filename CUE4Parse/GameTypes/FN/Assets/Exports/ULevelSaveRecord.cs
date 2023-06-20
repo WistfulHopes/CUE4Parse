@@ -57,6 +57,7 @@ namespace CUE4Parse.GameTypes.FN.Assets.Exports
         AddedConfigForNonSaveGameProperties,
         AddedLevelSaveTags,
         AddedSubobjectSerialization,
+        RefactoredSubobjectSerialization,
         RemoveInvalidEventBindings,
 
         VersionPlusOne,
@@ -90,6 +91,8 @@ namespace CUE4Parse.GameTypes.FN.Assets.Exports
         public uint DataHash;
         public short LevelRecordSaveVersion;
         public bool bUsingRecordDataReferenceTable;
+        public FSoftObjectPath[] ActorDataReferenceTable;
+        public bool[] ActorDataHardReferences;
 
         public FActorTemplateRecord(FLevelSaveRecordArchive Ar)
         {
@@ -152,6 +155,8 @@ namespace CUE4Parse.GameTypes.FN.Assets.Exports
             DataHash = fallback.GetOrDefault<uint>(nameof(DataHash));
             LevelRecordSaveVersion = fallback.GetOrDefault<short>(nameof(LevelRecordSaveVersion));
             bUsingRecordDataReferenceTable = fallback.GetOrDefault<bool>(nameof(bUsingRecordDataReferenceTable));
+            ActorDataReferenceTable = fallback.GetOrDefault<FSoftObjectPath[]>(nameof(ActorDataReferenceTable));
+            ActorDataHardReferences = fallback.GetOrDefault<bool[]>(nameof(ActorDataHardReferences));
         }
 
         public FStructFallback ReadActorData(IPackage owner, ELevelSaveRecordVersion SaveVersion)
