@@ -5,6 +5,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using CUE4Parse.MappingsProvider;
 using CUE4Parse.UE4.Assets.Objects;
+using CUE4Parse.UE4.Assets.Objects.Properties;
 using CUE4Parse.UE4.Assets.Objects.Unversioned;
 using CUE4Parse.UE4.Assets.Readers;
 using CUE4Parse.UE4.Exceptions;
@@ -274,25 +275,25 @@ namespace CUE4Parse.UE4.Assets.Exports
                 writer.WriteValue(Outer.Name); // TODO serialize the path too
             }
 
+            // class
+            if (Class != null)
+            {
+                writer.WritePropertyName("Class");
+                writer.WriteValue(Class.GetFullName());
+            }
+
             // super
             if (Super != null)
             {
                 writer.WritePropertyName("Super");
-                writer.WriteValue(Super.Name.Text);
+                serializer.Serialize(writer, Super);
             }
 
             // template
             if (Template != null)
             {
                 writer.WritePropertyName("Template");
-                writer.WriteValue(Template.Name.Text);
-            }
-
-            // class
-            if (Class != null)
-            {
-                writer.WritePropertyName("Class");
-                serializer.Serialize(writer, Class.GetFullName());
+                serializer.Serialize(writer, Template);
             }
 
             // export properties
@@ -475,22 +476,6 @@ namespace CUE4Parse.UE4.Assets.Exports
                 return cast;
             }
             throw new NullReferenceException($"Couldn't get property of type {typeof(T).Name} at index '{index}' in {holder.GetType().Name}");
-        }
-    }
-
-    public class UObjectConverter : JsonConverter<UObject>
-    {
-        public override void WriteJson(JsonWriter writer, UObject value, JsonSerializer serializer)
-        {
-            writer.WriteStartObject();
-            value.WriteJson(writer, serializer);
-            writer.WriteEndObject();
-        }
-
-        public override UObject ReadJson(JsonReader reader, Type objectType, UObject existingValue, bool hasExistingValue,
-            JsonSerializer serializer)
-        {
-            throw new NotImplementedException();
         }
     }
 
