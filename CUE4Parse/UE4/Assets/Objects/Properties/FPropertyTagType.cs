@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
@@ -23,7 +23,7 @@ namespace CUE4Parse.UE4.Assets.Objects.Properties
 
     public abstract class FPropertyTagType<T> : FPropertyTagType
     {
-        public T Value { get; protected set; }
+        public T? Value { get; protected set; }
 
         public override object? GenericValue => Value;
 
@@ -92,6 +92,11 @@ namespace CUE4Parse.UE4.Assets.Objects.Properties
                     return null;
             }
         }
+        
+        public T? GetValue<T>()
+        {
+            return (T?) GetValue(typeof(T));
+        }
 
         public abstract override string ToString();
 
@@ -134,6 +139,7 @@ namespace CUE4Parse.UE4.Assets.Objects.Properties
                 "UInt32Property" => new UInt32Property(Ar, type),
                 "UInt64Property" => new UInt64Property(Ar, type),
                 "WeakObjectProperty" => new WeakObjectProperty(Ar, type),
+                "OptionalProperty" => new OptionalProperty(Ar, tagData, type),
                 _ => null
             };
 #if DEBUG

@@ -21,6 +21,7 @@ namespace CUE4Parse.UE4.Assets.Exports.Material
         public bool bIsMasked { get; private set; }
         public FPackageIndex[] Expressions { get; private set; } = Array.Empty<FPackageIndex>();
         public EBlendMode BlendMode { get; private set; } = EBlendMode.BLEND_Opaque;
+        public ETranslucencyLightingMode TranslucencyLightingMode { get; private set; } = ETranslucencyLightingMode.TLM_VolumetricNonDirectional;
         public EMaterialShadingModel ShadingModel { get; private set; } = EMaterialShadingModel.MSM_Unlit;
         public float OpacityMaskClipValue { get; private set; } = 0.333f;
         public List<UTexture> ReferencedTextures { get; } = new();
@@ -36,6 +37,7 @@ namespace CUE4Parse.UE4.Assets.Exports.Material
             bIsMasked = GetOrDefault<bool>(nameof(bIsMasked));
             Expressions = GetOrDefault(nameof(Expressions), Expressions);
             BlendMode = GetOrDefault(nameof(BlendMode), BlendMode);
+            TranslucencyLightingMode = GetOrDefault(nameof(TranslucencyLightingMode), TranslucencyLightingMode);
             ShadingModel = GetOrDefault(nameof(ShadingModel), ShadingModel);
             OpacityMaskClipValue = GetOrDefault(nameof(OpacityMaskClipValue), OpacityMaskClipValue);
 
@@ -52,7 +54,7 @@ namespace CUE4Parse.UE4.Assets.Exports.Material
 
             // UE4 has complex FMaterialResource format, so avoid reading anything here, but
             // scan package's imports for UTexture objects instead
-            if (Ar.Game >= EGame.GAME_UE5_0)
+            if (Ar is { Game: >= EGame.GAME_UE5_0, Owner.Provider.SkipReferencedTextures: false })
                 ScanForTextures(Ar);
 
             if (Ar.Ver >= EUnrealEngineObjectUE4Version.PURGED_FMATERIAL_COMPILE_OUTPUTS)

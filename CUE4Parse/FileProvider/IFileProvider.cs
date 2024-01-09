@@ -64,6 +64,11 @@ namespace CUE4Parse.FileProvider
         /// Whether UStructs serialized by this file provider should read the script data
         /// </summary>
         public bool ReadScriptData { get; set; }
+        
+        /// <summary>
+        /// Whether UMaterial loading should skip loading ReferencedTextures
+        /// </summary>
+        public bool SkipReferencedTextures { get; set; }
 
         /// <summary>
         /// The name of the game represented by this provider.
@@ -332,5 +337,11 @@ namespace CUE4Parse.FileProvider
         /// <param name="packagePath">The package path</param>
         /// <returns>All objects of the package</returns>
         public IEnumerable<UObject> LoadAllObjects(string? packagePath);
+        /// <summary>
+        /// Asynchronusly loads all objects from the Package at the passed path
+        /// </summary>
+        /// <param name="packagePath">The package path</param>
+        /// <returns>All objects of the package</returns>
+        public Task<IEnumerable<UObject>> LoadAllObjectsAsync(string? packagePath);
     }
 }
