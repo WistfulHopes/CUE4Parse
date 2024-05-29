@@ -209,8 +209,9 @@ namespace CUE4Parse.UE4.Objects.Core.i18N
             public NamedFormat(FAssetArchive Ar)
             {
                 SourceFmt = new FText(Ar);
-                Arguments = new Dictionary<string, FFormatArgumentValue>(Ar.Read<int>());
-                for (int i = 0; i < Arguments.Count; i++)
+                int ArgCount = Ar.Read<int>();
+                Arguments = new Dictionary<string, FFormatArgumentValue>(ArgCount);
+                for (int i = 0; i < ArgCount; i++)
                 {
                     Arguments[Ar.ReadFString()] = new FFormatArgumentValue(Ar);
                 }
@@ -343,7 +344,9 @@ namespace CUE4Parse.UE4.Objects.Core.i18N
         {
             public readonly FName TableId;
             public readonly string Key;
-            public override string Text { get; }
+            public readonly string SourceString;
+            public readonly string LocalizedString;
+            public override string Text => LocalizedString;
 
             public StringTableEntry(FAssetArchive Ar)
             {
@@ -353,7 +356,8 @@ namespace CUE4Parse.UE4.Objects.Core.i18N
                 if (Ar.Owner.Provider!.TryLoadObject(TableId.Text, out UStringTable table) &&
                     table.StringTable.KeysToMetaData.TryGetValue(Key, out var t))
                 {
-                    Text = t;
+                    SourceString = t;
+                    LocalizedString = Ar.Owner.Provider!.GetLocalizedString(table.StringTable.TableNamespace, Key, t);
                 }
             }
         }

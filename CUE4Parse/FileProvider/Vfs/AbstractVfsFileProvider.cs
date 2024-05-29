@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
@@ -15,8 +15,6 @@ using CUE4Parse.UE4.Objects.Core.Misc;
 using CUE4Parse.UE4.Pak;
 using CUE4Parse.UE4.Readers;
 using CUE4Parse.UE4.Versions;
-using CUE4Parse.UE4.VirtualFileCache;
-using CUE4Parse.UE4.VirtualFileCache.Manifest;
 using CUE4Parse.UE4.VirtualFileSystem;
 using CUE4Parse.Utils;
 
@@ -43,6 +41,9 @@ namespace CUE4Parse.FileProvider.Vfs
         public IoGlobalData? GlobalData { get; private set; }
 
         public IAesVfsReader.CustomEncryptionDelegate? CustomEncryption { get; set; }
+        public event EventHandler<int>? VfsRegistered;
+        public event EventHandler<int>? VfsMounted;
+        public event EventHandler<int>? VfsUnmounted;
 
         protected AbstractVfsFileProvider(bool isCaseInsensitive = false, VersionContainer? versions = null) : base(isCaseInsensitive, versions)
         {
@@ -92,12 +93,13 @@ namespace CUE4Parse.FileProvider.Vfs
 
         private void PostLoadReader(AbstractAesVfsReader reader)
         {
-            if (reader.IsEncrypted && !_requiredKeys.ContainsKey(reader.EncryptionKeyGuid))
-                _requiredKeys[reader.EncryptionKeyGuid] = null;
+            if (reader.IsEncrypted)
+                _requiredKeys.TryAdd(reader.EncryptionKeyGuid, null);
 
             _unloadedVfs[reader] = null;
             reader.IsConcurrent = true;
             reader.CustomEncryption = CustomEncryption;
+            VfsRegistered?.Invoke(reader, _unloadedVfs.Count);
         }
 
         public int Mount() => MountAsync().Result;
@@ -116,9 +118,7 @@ namespace CUE4Parse.FileProvider.Vfs
                 {
                     try
                     {
-                        // Ensure that the custom encryption delegate specified for the provider is also used for the reader
-                        reader.CustomEncryption = CustomEncryption;
-                        reader.MountTo(_files, IsCaseInsensitive);
+                        reader.MountTo(_files, IsCaseInsensitive, VfsMounted);
                         _unloadedVfs.TryRemove(reader, out _);
                         _mountedVfs[reader] = null;
                         Interlocked.Increment(ref countNewMounts);
@@ -164,7 +164,7 @@ namespace CUE4Parse.FileProvider.Vfs
                     {
                         try
                         {
-                            reader.MountTo(_files, IsCaseInsensitive, key);
+                            reader.MountTo(_files, IsCaseInsensitive, key, VfsMounted);
                             _unloadedVfs.TryRemove(reader, out _);
                             _mountedVfs[reader] = null;
                             Interlocked.Increment(ref countNewMounts);
@@ -195,6 +195,29 @@ namespace CUE4Parse.FileProvider.Vfs
             return countNewMounts;
         }
 
+        public void PostMount()
+        {
+            var workingAes = LoadIniConfigs();
+            if (workingAes) return;
+
+            var vfsToVerify = _mountedVfs.Keys
+                    .Where(it => it is {IsEncrypted: false, EncryptedFileCount: > 0})
+                    .GroupBy(it => it.EncryptionKeyGuid);
+
+            foreach (var group in vfsToVerify)
+            {
+                if (group.Key != DefaultGame.EncryptionKeyGuid) continue;
+                foreach (var reader in group)
+                {
+                    _mountedVfs.TryRemove(reader, out _);
+                    _unloadedVfs[reader] = null;
+                    VfsUnmounted?.Invoke(reader, _unloadedVfs.Count);
+                }
+                _keys.TryRemove(group.Key, out _);
+                _requiredKeys[group.Key] = null;
+            }
+        }
+
         private void VerifyGlobalData(IAesVfsReader reader)
         {
             if (GlobalData != null || reader is not IoStoreReader ioStoreReader) return;
@@ -202,38 +225,6 @@ namespace CUE4Parse.FileProvider.Vfs
             {
                 GlobalData = new IoGlobalData(ioStoreReader);
             }
-        }
-
-        public int LoadVirtualCache()
-        {
-            var persistentDownloadDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), InternalGameName, "Saved/PersistentDownloadDir");
-            if (!Directory.Exists(persistentDownloadDir)) return 0;
-
-            var vfcMetadata = Path.Combine(persistentDownloadDir, "VFC", "vfc.meta");
-            var manifestCacheFolder = new DirectoryInfo(Path.Combine(persistentDownloadDir, "ManifestCache"));
-            if (!File.Exists(vfcMetadata) || !manifestCacheFolder.Exists)
-                return 0;
-
-            var cachedManifest = manifestCacheFolder.GetFiles("*.manifest");
-            if (cachedManifest.Length <= 0)
-                return 0;
-
-            var vfc = new FFileTable(new FByteArchive("vfc.meta", File.ReadAllBytes(vfcMetadata)));
-            var manifest = new OptimizedContentBuildManifest(
-                File.ReadAllBytes(cachedManifest.OrderBy(f => f.LastWriteTime).Last().FullName));
-
-            var onDemandFiles = new Dictionary<string, GameFile>();
-            foreach ((var vfcHash, var dataReference) in vfc.FileMap)
-            {
-                if (!manifest.HashNameMap.TryGetValue(vfcHash.ToString(), out var filePath)) continue;
-
-                var onDemandFile = new VfcGameFile(vfc.BlockFiles, dataReference, persistentDownloadDir, filePath, Versions);
-                if (IsCaseInsensitive) onDemandFiles[onDemandFile.Path.ToLowerInvariant()] = onDemandFile;
-                else onDemandFiles[onDemandFile.Path] = onDemandFile;
-            }
-
-            _files.AddFiles(onDemandFiles);
-            return onDemandFiles.Count;
         }
 
         public void UnloadAllVfs()
@@ -245,6 +236,7 @@ namespace CUE4Parse.FileProvider.Vfs
                 _requiredKeys[reader.EncryptionKeyGuid] = null;
                 _mountedVfs.TryRemove(reader, out _);
                 _unloadedVfs[reader] = null;
+                VfsUnmounted?.Invoke(reader, _unloadedVfs.Count);
             }
         }
         public void UnloadNonStreamedVfs()

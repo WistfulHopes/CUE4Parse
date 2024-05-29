@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
@@ -20,13 +20,34 @@ namespace CUE4Parse.UE4.Assets.Exports
     public interface IPropertyHolder
     {
         public List<FPropertyTag> Properties { get; }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public T GetOrDefault<T>(string name, T defaultValue = default!, StringComparison comparisonType = StringComparison.Ordinal);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public Lazy<T> GetOrDefaultLazy<T>(string name, T defaultValue = default!, StringComparison comparisonType = StringComparison.Ordinal);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public T Get<T>(string name, StringComparison comparisonType = StringComparison.Ordinal);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public Lazy<T> GetLazy<T>(string name, StringComparison comparisonType = StringComparison.Ordinal);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public T GetByIndex<T>(int index);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public bool TryGetValue<T>(out T obj, params string[] names);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public bool TryGetAllValues<T>(out T[] obj, string name);
     }
 
     [JsonConverter(typeof(UObjectConverter))]
     [SkipObjectRegistration]
     public class UObject : IPropertyHolder
     {
-        public string Name { get; set; }
+        public string Name { get; set; } = null!;
         public UObject? Outer;
         public UStruct? Class;
         public ResolvedObject? Super;
@@ -73,11 +94,11 @@ namespace CUE4Parse.UE4.Assets.Exports
             {
                 if (Class == null)
                     throw new ParserException(Ar, "Found unversioned properties but object does not have a class");
-                DeserializePropertiesUnversioned(Properties = new List<FPropertyTag>(), Ar, Class);
+                DeserializePropertiesUnversioned(Properties = [], Ar, Class);
             }
             else
             {
-                DeserializePropertiesTagged(Properties = new List<FPropertyTag>(), Ar);
+                DeserializePropertiesTagged(Properties = [], Ar, false);
             }
 
             if (!Flags.HasFlag(EObjectFlags.RF_ClassDefaultObject) && Ar.ReadBoolean() && Ar.Position + 16 <= validPos)
@@ -197,9 +218,9 @@ namespace CUE4Parse.UE4.Assets.Exports
 
             Struct? propMappings = null;
             if (struc is UScriptClass)
-                Ar.Owner.Mappings?.Types.TryGetValue(type, out propMappings);
+                Ar.Owner!.Mappings?.Types.TryGetValue(type, out propMappings);
             else
-                propMappings = new SerializedStruct(Ar.Owner.Mappings, struc);
+                propMappings = new SerializedStruct(Ar.Owner!.Mappings, struc);
 
             if (propMappings == null)
             {
@@ -245,8 +266,18 @@ namespace CUE4Parse.UE4.Assets.Exports
             } while (it.MoveNext());
         }
 
-        internal static void DeserializePropertiesTagged(List<FPropertyTag> properties, FAssetArchive Ar)
+        internal static void DeserializePropertiesTagged(List<FPropertyTag> properties, FAssetArchive Ar, bool isStruct)
         {
+            if (!isStruct && Ar.Ver >= EUnrealEngineObjectUE5Version.PROPERTY_TAG_EXTENSION_AND_OVERRIDABLE_SERIALIZATION)
+            {
+                var SerializationControl = Ar.Read<EClassSerializationControlExtension>();
+
+                if (SerializationControl.HasFlag(EClassSerializationControlExtension.OverridableSerializationInformation))
+                {
+                    var Operation = Ar.Read<byte>(); // Operation
+                }
+            }
+
             while (true)
             {
                 var tag = new FPropertyTag(Ar, true);
@@ -311,36 +342,35 @@ namespace CUE4Parse.UE4.Assets.Exports
             }
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public T GetOrDefault<T>(string name, T defaultValue = default, StringComparison comparisonType = StringComparison.Ordinal) =>
+        public T GetOrDefault<T>(string name, T defaultValue = default!, StringComparison comparisonType = StringComparison.Ordinal) =>
             PropertyUtil.GetOrDefault(this, name, defaultValue, comparisonType);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public Lazy<T> GetOrDefaultLazy<T>(string name, T defaultValue = default, StringComparison comparisonType = StringComparison.Ordinal) =>
+
+        public Lazy<T> GetOrDefaultLazy<T>(string name, T defaultValue = default!, StringComparison comparisonType = StringComparison.Ordinal) =>
             PropertyUtil.GetOrDefaultLazy(this, name, defaultValue, comparisonType);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+
         public T Get<T>(string name, StringComparison comparisonType = StringComparison.Ordinal) =>
             PropertyUtil.Get<T>(this, name, comparisonType);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+
         public Lazy<T> GetLazy<T>(string name, StringComparison comparisonType = StringComparison.Ordinal) =>
             PropertyUtil.GetLazy<T>(this, name, comparisonType);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+
         public T GetByIndex<T>(int index) => PropertyUtil.GetByIndex<T>(this, index);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+
         public bool TryGetValue<T>(out T obj, params string[] names)
         {
             foreach (string name in names)
             {
-                if (GetOrDefault<T>(name, comparisonType: StringComparison.OrdinalIgnoreCase) is T ret && !ret.Equals(default(T)))
+                if (GetOrDefault<T>(name, comparisonType: StringComparison.OrdinalIgnoreCase) is { } ret && !ret.Equals(default(T)))
                 {
                     obj = ret;
                     return true;
                 }
             }
 
-            obj = default;
+            obj = default!;
             return false;
         }
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+
         public bool TryGetAllValues<T>(out T[] obj, string name)
         {
             var maxIndex = -1;
@@ -354,7 +384,7 @@ namespace CUE4Parse.UE4.Assets.Exports
 
             obj = new T[maxIndex + 1];
             foreach (var prop in collected) {
-                obj[prop.ArrayIndex] = (T) prop.Tag.GetValue(typeof(T));
+                obj[prop.ArrayIndex] = (T)prop.Tag?.GetValue(typeof(T))!;
             }
 
             return obj.Length > 0;
@@ -421,7 +451,7 @@ namespace CUE4Parse.UE4.Assets.Exports
     public static class PropertyUtil
     {
         // TODO Little Problem here: Can't use T? since this would need a constraint to struct or class, which again wouldn't work fine with primitives
-        public static T GetOrDefault<T>(IPropertyHolder holder, string name, T defaultValue = default, StringComparison comparisonType = StringComparison.Ordinal)
+        public static T GetOrDefault<T>(IPropertyHolder holder, string name, T defaultValue = default!, StringComparison comparisonType = StringComparison.Ordinal)
         {
             foreach (var prop in holder.Properties)
             {
@@ -437,7 +467,7 @@ namespace CUE4Parse.UE4.Assets.Exports
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Lazy<T> GetOrDefaultLazy<T>(IPropertyHolder holder, string name, T defaultValue = default,
+        public static Lazy<T> GetOrDefaultLazy<T>(IPropertyHolder holder, string name, T defaultValue = default!,
             StringComparison comparisonType = StringComparison.Ordinal) =>
             new(() => GetOrDefault(holder, name, defaultValue, comparisonType));
 
@@ -534,5 +564,20 @@ namespace CUE4Parse.UE4.Assets.Exports
 
         public static bool operator ==(FLifetimeProperty a, FLifetimeProperty b) => a.RepIndex == b.RepIndex && a.Condition == b.Condition && a.RepNotifyCondition == b.RepNotifyCondition;
         public static bool operator !=(FLifetimeProperty a, FLifetimeProperty b) => !(a == b);
+    }
+
+    [Flags]
+    public enum EClassSerializationControlExtension : byte
+    {
+        NoExtension					= 0x00,
+        ReserveForFutureUse			= 0x01, // Can be use to add a next group of extension
+
+        ////////////////////////////////////////////////
+        // First extension group
+        OverridableSerializationInformation	= 0x02,
+
+        //
+        // Add more extension for the first group here
+        //
     }
 }

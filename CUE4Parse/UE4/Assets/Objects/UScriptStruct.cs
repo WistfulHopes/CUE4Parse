@@ -1,6 +1,7 @@
 using CUE4Parse.GameTypes.FN.Objects;
 using CUE4Parse.GameTypes.SWJS.Objects;
 using CUE4Parse.GameTypes.TSW.Objects;
+using CUE4Parse.GameTypes.L2KD.Objects;
 using CUE4Parse.UE4.Assets.Exports.Engine.Font;
 using CUE4Parse.UE4.Assets.Exports.Material;
 using CUE4Parse.UE4.Assets.Exports.SkeletalMesh;
@@ -36,6 +37,7 @@ namespace CUE4Parse.UE4.Assets.Objects
             {
                 "Box" => type == ReadType.ZERO ? new FBox() : new FBox(Ar),
                 "Box2D" => type == ReadType.ZERO ? new FBox2D() : new FBox2D(Ar),
+                "Box2f" => type == ReadType.ZERO ? new TBox2<float>() : new TBox2<float>(Ar),
                 "Color" => type == ReadType.ZERO ? new FColor() : Ar.Read<FColor>(),
                 "ColorMaterialInput" => type == ReadType.ZERO ? new FMaterialInput<FColor>() : new FMaterialInput<FColor>(Ar),
                 "DateTime" => type == ReadType.ZERO ? new FDateTime() : Ar.Read<FDateTime>(),
@@ -151,6 +153,9 @@ namespace CUE4Parse.UE4.Assets.Objects
                 "RsBitfield_WorldMapLODLevel" => new FRsBitfield(Ar, structName),
                 "RsBitfield_WorldMapWidgetFilterType" => new FRsBitfield(Ar, structName),
 
+                // Lego 2K Drive
+                "LegoGraphPartInstance" => type == ReadType.ZERO ? new FLegoGraphPartInstance() : new FLegoGraphPartInstance(Ar),
+				
                 _ => type == ReadType.ZERO ? new FStructFallback() : struc != null ? new FStructFallback(Ar, struc) : new FStructFallback(Ar, structName)
             };
         }

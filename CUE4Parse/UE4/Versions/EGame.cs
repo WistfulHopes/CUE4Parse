@@ -35,12 +35,14 @@ namespace CUE4Parse.UE4.Versions
             GAME_KingdomHearts3 = GAME_UE4_18 + 1,
             GAME_FinalFantasy7Remake = GAME_UE4_18 + 2,
             GAME_AceCombat7 = GAME_UE4_18 + 3,
+            GAME_FridayThe13th = GAME_UE4_18 + 4,
         GAME_UE4_19 = GameUtils.GameUe4Base + 19 << 4,
             GAME_Paragon = GAME_UE4_19 + 1,
         GAME_UE4_20 = GameUtils.GameUe4Base + 20 << 4,
             GAME_Borderlands3 = GAME_UE4_20 + 1,
         GAME_UE4_21 = GameUtils.GameUe4Base + 21 << 4,
             GAME_StarWarsJediFallenOrder = GAME_UE4_21 + 1,
+            GAME_Undawn = GAME_UE4_21 + 2,
         GAME_UE4_22 = GameUtils.GameUe4Base + 22 << 4,
         GAME_UE4_23 = GameUtils.GameUe4Base + 23 << 4,
             GAME_ApexLegendsMobile = GAME_UE4_23 + 1,
@@ -52,6 +54,8 @@ namespace CUE4Parse.UE4.Versions
             GAME_KenaBridgeofSpirits = GAME_UE4_25 + 4,
             GAME_CalabiYau = GAME_UE4_25 + 5,
             GAME_SYNCED = GAME_UE4_25 + 6,
+            GAME_OperationApocalypse = GAME_UE4_25 + 7,
+            GAME_Farlight84 = GAME_UE4_25 + 8,
         GAME_UE4_26 = GameUtils.GameUe4Base + 26 << 4,
             GAME_GTATheTrilogyDefinitiveEdition = GAME_UE4_26 + 1,
             GAME_ReadyOrNot = GAME_UE4_26 + 2,
@@ -62,6 +66,10 @@ namespace CUE4Parse.UE4.Versions
             GAME_StarWarsJediSurvivor = GAME_UE4_26 + 7,
             GAME_Snowbreak = GAME_UE4_26 + 8,
             GAME_TorchlightInfinite = GAME_UE4_26 + 9,
+            GAME_QQ = GAME_UE4_26 + 10,
+            GAME_WutheringWaves = GAME_UE4_26 + 11,
+            GAME_DreamStar = GAME_UE4_26 + 12,
+            GAME_MidnightSuns = GAME_UE4_26 + 13,
         GAME_UE4_27 = GameUtils.GameUe4Base + 27 << 4,
             GAME_Splitgate = GAME_UE4_27 + 1,
             GAME_HYENAS = GAME_UE4_27 + 2,
@@ -70,6 +78,7 @@ namespace CUE4Parse.UE4.Versions
             GAME_Valorant = GAME_UE4_27 + 5,
             GAME_Gollum = GAME_UE4_27 + 6,
             GAME_Grounded = GAME_UE4_27 + 7,
+            GAME_SeekersofSkyveil = GAME_UE4_27 + 8,
         GAME_UE4_28 = GameUtils.GameUe4Base + 28 << 4,
 
         GAME_UE4_LATEST = GAME_UE4_28,
@@ -80,11 +89,17 @@ namespace CUE4Parse.UE4.Versions
         GAME_UE5_0 = GameUtils.GameUe5Base + 0 << 4,
             GAME_MeetYourMaker = GAME_UE5_0 + 1,
         GAME_UE5_1 = GameUtils.GameUe5Base + 1 << 4,
+            GAME_3on3FreeStyleRebound = GAME_UE5_1 + 1,
         GAME_UE5_2 = GameUtils.GameUe5Base + 2 << 4,
+            GAME_DeadByDaylight = GAME_UE5_2 + 1,
+            GAME_PaxDei = GAME_UE5_2 + 2,
         GAME_UE5_3 = GameUtils.GameUe5Base + 3 << 4,
+            GAME_MarvelRivals = GAME_UE5_3 + 1,
+            GAME_WildAssault = GAME_UE5_3 + 2,
         GAME_UE5_4 = GameUtils.GameUe5Base + 4 << 4,
+        GAME_UE5_5 = GameUtils.GameUe5Base + 5 << 4,
 
-        GAME_UE5_LATEST = GAME_UE5_3
+        GAME_UE5_LATEST = GAME_UE5_5
     }
 
     public static class GameUtils
@@ -112,6 +127,7 @@ namespace CUE4Parse.UE4.Versions
                     < EGame.GAME_UE5_1 => new FPackageFileVersion(522, 1004),
                     < EGame.GAME_UE5_2 => new FPackageFileVersion(522, 1008),
                     < EGame.GAME_UE5_4 => new FPackageFileVersion(522, 1009),
+                    < EGame.GAME_UE5_5 => new FPackageFileVersion(522, 1011),
                     _ => new FPackageFileVersion((int) EUnrealEngineObjectUE4Version.AUTOMATIC_VERSION, (int) EUnrealEngineObjectUE5Version.AUTOMATIC_VERSION)
                 };
             }

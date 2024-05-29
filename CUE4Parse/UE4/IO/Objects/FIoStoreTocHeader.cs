@@ -1,4 +1,4 @@
-﻿using System.Linq;
+using System.Linq;
 using CUE4Parse.UE4.Exceptions;
 using CUE4Parse.UE4.Objects.Core.Misc;
 using CUE4Parse.UE4.Readers;
@@ -15,6 +15,8 @@ namespace CUE4Parse.UE4.IO.Objects
         PerfectHash,
         PerfectHashWithOverflow,
         OnDemandMetaData,
+        RemovedOnDemandMetaData,
+        ReplaceIoChunkHashWithIoHash,
         LatestPlusOne,
         Latest = LatestPlusOne - 1
     }
@@ -56,7 +58,7 @@ namespace CUE4Parse.UE4.IO.Objects
         public ulong PartitionSize;
         public readonly uint TocChunksWithoutPerfectHashCount;
         private readonly uint _reserved7;
-        private readonly ulong[] _reserved8;
+        public readonly ulong[] _reserved8;
 
         public FIoStoreTocHeader(FArchive Ar)
         {

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using CUE4Parse.GameTypes.FF7.Objects;
 using CUE4Parse.GameTypes.FN.Objects;
@@ -960,23 +960,23 @@ public class UScriptMapConverter : JsonConverter<UScriptMap>
 
         foreach (var kvp in value.Properties)
         {
+            writer.WriteStartObject();
             switch (kvp.Key)
             {
                 case StructProperty:
-                    writer.WriteStartObject();
                     writer.WritePropertyName("Key");
                     serializer.Serialize(writer, kvp.Key);
                     writer.WritePropertyName("Value");
                     serializer.Serialize(writer, kvp.Value);
-                    writer.WriteEndObject();
                     break;
                 default:
-                    writer.WriteStartObject();
-                    writer.WritePropertyName(kvp.Key.ToString().SubstringBefore('(').Trim());
+                    writer.WritePropertyName("Key");
+                    writer.WriteValue(kvp.Key.ToString().SubstringBefore('(').Trim());
+                    writer.WritePropertyName("Value");
                     serializer.Serialize(writer, kvp.Value);
-                    writer.WriteEndObject();
                     break;
             }
+            writer.WriteEndObject();
         }
 
         writer.WriteEndArray();
@@ -1176,8 +1176,8 @@ public class WwiseConverter : JsonConverter<WwiseReader>
         writer.WritePropertyName("WemIndexes");
         serializer.Serialize(writer, value.WemIndexes);
 
-        writer.WritePropertyName("Hierarchy");
-        serializer.Serialize(writer, value.Hierarchy);
+        writer.WritePropertyName("Hierarchies");
+        serializer.Serialize(writer, value.Hierarchies);
 
         writer.WritePropertyName("IdToString");
         serializer.Serialize(writer, value.IdToString);
@@ -2428,7 +2428,7 @@ public class FAssetPackageDataConverter : JsonConverter<FAssetPackageData>
             serializer.Serialize(writer, value.Flags);
         }
 
-        if (value.CustomVersions.Versions is { Length: > 0 })
+        if (value.CustomVersions?.Versions is { Length: > 0 })
         {
             writer.WritePropertyName("CustomVersions");
             serializer.Serialize(writer, value.CustomVersions);
