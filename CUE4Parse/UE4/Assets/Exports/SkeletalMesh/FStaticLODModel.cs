@@ -225,7 +225,7 @@ namespace CUE4Parse.UE4.Assets.Exports.SkeletalMesh
 
                 ActiveBoneIndices = Ar.ReadArray<short>();
 
-                if (Ar.Game == EGame.GAME_KenaBridgeofSpirits)
+                if (Ar.Game is EGame.GAME_KenaBridgeofSpirits or EGame.GAME_FragPunk)
                     Ar.ReadArray<byte>(); // EAssetType_array1
 
                 Ar.Position += 4; //var buffersSize = Ar.Read<uint>();
@@ -233,6 +233,7 @@ namespace CUE4Parse.UE4.Assets.Exports.SkeletalMesh
                 if (bInlined)
                 {
                     SerializeStreamedData(Ar, bHasVertexColors);
+
                     if (Ar.Game == EGame.GAME_RogueCompany)
                     {
                         Ar.Position += 12; // 1 (Long) + 2^16 (Int)
@@ -240,6 +241,18 @@ namespace CUE4Parse.UE4.Assets.Exports.SkeletalMesh
                         var elementCount = Ar.Read<int>();
                         if (elementSize > 0 && elementCount > 0)
                             Ar.SkipBulkArrayData();
+                    }
+
+                    if (Ar.Game == EGame.GAME_MortalKombat1 && Ar.ReadBoolean())
+                    {
+                        Ar.SkipBulkArrayData();
+                        Ar.SkipBulkArrayData();
+                        Ar.SkipBulkArrayData();
+                        Ar.SkipBulkArrayData();
+                        Ar.SkipBulkArrayData();
+                        Ar.SkipBulkArrayData();
+                        Ar.SkipBulkArrayData();
+                        Ar.Position += 8;
                     }
                 }
                 else
@@ -368,6 +381,11 @@ namespace CUE4Parse.UE4.Assets.Exports.SkeletalMesh
             if (HasClothData())
                 ClothVertexBuffer = new FSkeletalMeshVertexClothBuffer(Ar);
 
+            if (Ar.Game == EGame.GAME_Spectre)
+            {
+                _ = new FMultisizeIndexContainer(Ar);
+            }
+            
             var skinWeightProfilesData = new FSkinWeightProfilesData(Ar);
 
             if (Ar.Versions["SkeletalMesh.HasRayTracingData"])
